@@ -6,32 +6,33 @@ export function GameOverScreen() {
   const gameOverReason = useGameState((state) => state.gameOverReason);
   const gameOverCountdown = useGameState((state) => state.gameOverCountdown);
   const resetGame = useGameState((state) => state.resetGame);
+  const reducedFlashing = useGameState((state) => state.settings.reducedFlashing);
 
   if (!isGameOver) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-2xl p-6 text-slate-100 font-mono animate-pulse">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-2xl p-6 text-slate-100 font-mono select-none ${reducedFlashing ? '' : 'animate-pulse'}`}>
       {/* Glitch CRT Overlay */}
-      <div className="absolute inset-0 bg-red-950/30 mix-blend-overlay pointer-events-none animate-flicker" />
+      {!reducedFlashing && <div className="absolute inset-0 bg-red-950/30 mix-blend-overlay pointer-events-none animate-flicker" />}
       <div className="absolute inset-0 crt-overlay pointer-events-none" />
 
       <div className="relative w-full max-w-xl bg-[#0F172A] border-4 border-[#D94141] rounded-2xl shadow-[0_0_50px_rgba(217,65,65,0.6)] overflow-hidden p-8 flex flex-col items-center text-center gap-5 z-10">
-        {/* Pulsing Skull Icon */}
+        {/* Skull Icon */}
         <div className="p-4 rounded-full bg-red-950/80 text-[#D94141] border-2 border-[#D94141] shadow-[0_0_20px_#D94141]">
-          <Skull className="w-12 h-12 animate-bounce" />
+          <Skull className="w-12 h-12" />
         </div>
 
         {/* Header */}
         <div>
           <div className="flex items-center justify-center gap-2 text-xs font-bold text-[#D94141] uppercase tracking-widest mb-1">
-            <AlertTriangle className="w-4 h-4 animate-spin" style={{ animationDuration: '4s' }} />
+            <AlertTriangle className="w-4 h-4" />
             <span>CRITICAL STATION PARADOX / REALITY FAILURE</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-black text-white uppercase tracking-wider red-glow">
             GAME OVER
           </h1>
           <p className="text-xs text-[#F5B960] mt-1">
-            STATION 13 TEMPORAL COLLAPSE - 01:13 AM
+            STATION 13 TEMPORAL COLLAPSE • 01:13 AM
           </p>
         </div>
 
@@ -51,7 +52,7 @@ export function GameOverScreen() {
         {/* Auto-Reset Countdown */}
         <div className="w-full bg-red-950/40 border border-red-800/50 py-3 px-4 rounded-lg flex items-center justify-between text-xs">
           <span className="text-slate-300">AUTOMATIC TIMELINE REBOOT:</span>
-          <span className="text-lg font-black text-[#D94141] animate-ping">
+          <span className="text-lg font-black text-[#D94141]">
             {gameOverCountdown}s
           </span>
         </div>
