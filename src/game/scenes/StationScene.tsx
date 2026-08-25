@@ -3,6 +3,8 @@ import { RadioRoom } from '../objects/RadioRoom';
 import { Hallway } from '../objects/Hallway';
 import { ObservationDeck } from '../objects/ObservationDeck';
 import { GeneratorRoom } from '../objects/GeneratorRoom';
+import { ArchiveRoom } from '../objects/ArchiveRoom';
+import { SleepingQuarters } from '../objects/SleepingQuarters';
 import { WeatherEffects } from '../objects/WeatherEffects';
 import { PlayerController } from '../systems/PlayerController';
 import { useGameState } from '../state/useGameState';
@@ -20,16 +22,18 @@ export function StationScene() {
         {/* Base Ambient Storm Lighting */}
         <ambientLight intensity={0.25} color="#102A43" />
 
-        {/* 3D Rooms and Geometry */}
+        {/* 3D Rooms and Station Geometry */}
         <RadioRoom />
         <Hallway />
         <ObservationDeck />
         <GeneratorRoom />
+        <ArchiveRoom />
+        <SleepingQuarters />
 
-        {/* Rain, Lightning, and Fog */}
+        {/* Rain, Lightning, and Volumetric Atmosphere */}
         <WeatherEffects />
 
-        {/* Player Camera & Controls */}
+        {/* Player Camera, Collisions & Touch/Mouse System */}
         <PlayerController />
       </Canvas>
     </div>
