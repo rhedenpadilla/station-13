@@ -67,10 +67,17 @@ export const OBJECTIVES: ObjectiveItem[] = [
   },
   {
     id: 7,
-    title: "Calibrate & Engage Emergency Beacon",
+    title: "Calibrate Beacon Optical Relay",
     description: "Open the Beacon Calibration Terminal on the Observation Deck or Radio Desk. Match Target Frequency (13.13 MHz), Output Power (85%), and Azimuth Direction (240° SW).",
-    hint: "Interact with the beacon calibration terminal and adjust all three dials until resonance reaches 100%, then make your final decision.",
+    hint: "Adjust all three dials until resonance reaches 100% to open the upper Signal Tower hatch.",
     subObjective: "Review the Investigation Board for full mystery context.",
+  },
+  {
+    id: 8,
+    title: "Ascend to Signal Tower & Broadcast Final Decision",
+    description: "The ladder hatch to the upper Signal Tower on the Observation Deck is unlocked. Climb up to the Upper Beacon Array to transmit your final command.",
+    hint: "Ascend the stairs/ladder on the Observation Deck into the Signal Tower and interact with the Upper Array Terminal.",
+    subObjective: "Review the Narrative Recap to see if all optional evidence is collected.",
   },
 ];
 
@@ -163,6 +170,20 @@ export const BEACON_CALIBRATION_DOC: NoteData = {
   ],
 };
 
+export const OPERATOR_FINAL_LOG: NoteData = {
+  id: "operator_final_log",
+  title: "SIGNAL TOWER TRANSMISSION LOG: 1986",
+  subtitle: "Classified Tower Dossier - Sector 13 Upper Deck",
+  date: "October 13, 01:13 AM (1986)",
+  author: "Night Operator (Eli Vance Navarro)",
+  content: [
+    "If anyone reads this from the other side of the storm: the S.S. Calypso never sank.",
+    "When the optical relay pulsed at 13.13 MHz, the light didn't just illuminate the shoals... it synchronized two moments separated by decades.",
+    "The signal we are hearing isn't an echo of a disaster. It is a continuous bridge waiting for someone to complete the circuit.",
+    "If you hold the carrier wave open at 13.13 MHz, the timeline will permanently fuse. Station 13 will become the anchor.",
+  ],
+};
+
 export const CASSETTE_TRANSCRIPTS = {
   TAPE_A: "Shift Log... October 13... Vance speaking. We can hear them again through the static. They aren't on 13.13... the distress carrier is modulated on 14.28 MHz. If anyone is listening... tune to 14.28... calibrate the beacon before the shoals take them.",
   TAPE_B: "Mayday... Mayday... S.S. Calypso to Station 13... we have lost steerage in the gale... our radar is blinded... if you can illuminate the beacon at 240 degrees, we can clear the rocks... do not let the light go out...",
@@ -170,8 +191,9 @@ export const CASSETTE_TRANSCRIPTS = {
 
 export const RADIO_TRANSCRIPTS = {
   FIRST_SIGNAL: "Station 13... Restore the beacon circuit... Do not let the light go out...",
-  SECOND_SIGNAL_1428: "Station 13, signal locked. We can see the auxiliary power surge. Set the beacon frequency to 13.13, power to 85 percent, and align azimuth to 240 degrees SW. We are waiting in the dark.",
+  SECOND_SIGNAL_1428: "Station 13, signal locked. We can see the auxiliary power surge. Set the beacon frequency to 13.13, power to 85 percent, and align azimuth to 240 degrees SW. The upper tower ladder is open.",
   FINAL_PRE_CHOICE: "The beacon array is calibrated and primed. The storm is at peak intensity. Decide the fate of Signal 13.",
   BEACON_ENDING: "Beacon transmission confirmed. Optical beam locked at 240 degrees. Vessel acknowledgment received. The storm breaks over Station 13.",
   SILENT_ENDING: "Transceiver power severed. All bands silent. The carrier wave dissolves into the void. Station clock resets to 01:13 AM.",
+  UNKNOWN_SIGNAL_ENDING: "Unknown carrier resonance achieved. The 13.13 MHz frequency expands across all channels. The storm exterior freezes in place. Station 13 transcends the timeline.",
 };
