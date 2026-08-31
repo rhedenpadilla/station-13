@@ -42,6 +42,8 @@ export function HUD() {
         return 'ARCHIVE & EVIDENCE ROOM';
       case 'SLEEPING_QUARTERS':
         return 'SLEEPING QUARTERS';
+      case 'SIGNAL_TOWER':
+        return 'UPPER SIGNAL TOWER';
       default:
         return 'WEATHER STATION 13';
     }
