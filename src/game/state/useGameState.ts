@@ -4,10 +4,17 @@ import { INVENTORY_ITEMS, InventoryItem } from '../constants/inventoryData';
 import { EVIDENCE_DATABASE, EvidenceItem } from '../constants/evidenceData';
 import { soundEngine } from '../audio/SoundEngine';
 
-export type EndingType = 'BEACON' | 'SILENT_FREQUENCY' | null;
+export type EndingType = 'BEACON' | 'SILENT_FREQUENCY' | 'UNKNOWN_SIGNAL' | null;
 export type GraphicsQuality = 'LOW' | 'MEDIUM' | 'HIGH';
 export type VirtualControlsMode = 'AUTO' | 'ALWAYS_ON' | 'DISABLED';
-export type SectorType = 'RADIO_ROOM' | 'HALLWAY' | 'OBSERVATION_DECK' | 'GENERATOR_ROOM' | 'ARCHIVE_ROOM' | 'SLEEPING_QUARTERS';
+export type SectorType =
+  | 'RADIO_ROOM'
+  | 'HALLWAY'
+  | 'OBSERVATION_DECK'
+  | 'GENERATOR_ROOM'
+  | 'ARCHIVE_ROOM'
+  | 'SLEEPING_QUARTERS'
+  | 'SIGNAL_TOWER';
 
 export interface GameSettings {
   masterVolume: number;
@@ -45,6 +52,7 @@ export interface GameState {
   endingsUnlocked: {
     beacon: boolean;
     silentFrequency: boolean;
+    unknownSignal: boolean;
   };
 
   // Game Over & Sanity
@@ -76,6 +84,7 @@ export interface GameState {
   archiveDoorUnlocked: boolean;
   archiveCabinetUnlocked: boolean;
   sleepingQuartersUnlocked: boolean;
+  signalTowerUnlocked: boolean;
 
   // Puzzle Flags
   hasHeardFirstSignal: boolean;
@@ -114,6 +123,7 @@ export interface GameState {
   activeCassetteId: 'cassette_tape_a' | 'cassette_tape_b' | null;
   beaconCalibrationOpen: boolean;
   choiceModalOpen: boolean;
+  narrativeRecapOpen: boolean;
 
   // Settings
   settings: GameSettings;
@@ -145,6 +155,9 @@ export interface GameState {
   unlockEvidence: (evidenceId: string) => void;
   openInvestigationBoard: () => void;
   closeInvestigationBoard: () => void;
+  openNarrativeRecap: () => void;
+  closeNarrativeRecap: () => void;
+  canTriggerUnknownSignal: () => boolean;
 
   // Radio & Modal Actions
   openRadioTuner: () => void;
@@ -171,20 +184,28 @@ export interface GameState {
   restorePower: () => void;
   unlockArchiveCabinet: () => void;
   completeTapeDecryption: () => void;
-  triggerEnding: (ending: 'BEACON' | 'SILENT_FREQUENCY') => void;
+  triggerEnding: (ending: 'BEACON' | 'SILENT_FREQUENCY' | 'UNKNOWN_SIGNAL') => void;
   resetGame: () => void;
   resetAllProgress: () => void;
   updateSettings: (newSettings: Partial<GameSettings>) => void;
   triggerLightning: () => void;
 }
 
-const STORAGE_KEY = 'DEAD_AIR_SIGNAL_13_SAVE_V2';
+const STORAGE_KEY = 'DEAD_AIR_SIGNAL_13_SAVE_V3';
 
 const loadSavedData = () => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('DEAD_AIR_SIGNAL_13_SAVE_V2');
     if (raw) {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return {
+        ...parsed,
+        endingsUnlocked: {
+          beacon: !!parsed?.endingsUnlocked?.beacon,
+          silentFrequency: !!parsed?.endingsUnlocked?.silentFrequency,
+          unknownSignal: !!parsed?.endingsUnlocked?.unknownSignal,
+        },
+      };
     }
   } catch (e) {
     console.warn("Failed to load local storage save", e);
@@ -212,7 +233,7 @@ export const useGameState = create<GameState>((set, get) => ({
   isPaused: false,
   activeEnding: null,
   hasCompletedBefore: saved?.hasCompletedBefore || false,
-  endingsUnlocked: saved?.endingsUnlocked || { beacon: false, silentFrequency: false },
+  endingsUnlocked: saved?.endingsUnlocked || { beacon: false, silentFrequency: false, unknownSignal: false },
 
   // Game Over & Sanity
   isGameOver: false,
@@ -249,6 +270,7 @@ export const useGameState = create<GameState>((set, get) => ({
   archiveDoorUnlocked: false,
   archiveCabinetUnlocked: false,
   sleepingQuartersUnlocked: false,
+  signalTowerUnlocked: false,
 
   // Puzzle Flags
   hasHeardFirstSignal: false,
@@ -291,6 +313,7 @@ export const useGameState = create<GameState>((set, get) => ({
   activeCassetteId: null,
   beaconCalibrationOpen: false,
   choiceModalOpen: false,
+  narrativeRecapOpen: false,
 
   settings: saved?.settings ? { ...defaultSettings, ...saved.settings } : defaultSettings,
 
@@ -325,9 +348,11 @@ export const useGameState = create<GameState>((set, get) => ({
       archiveDoorUnlocked: false,
       archiveCabinetUnlocked: false,
       sleepingQuartersUnlocked: false,
+      signalTowerUnlocked: false,
       radioTunerOpen: false,
       noteViewerOpen: false,
       choiceModalOpen: false,
+      narrativeRecapOpen: false,
       inventoryOpen: false,
       investigationBoardOpen: false,
       cassettePlayerOpen: false,
@@ -362,6 +387,7 @@ export const useGameState = create<GameState>((set, get) => ({
       radioTunerOpen: false,
       noteViewerOpen: false,
       choiceModalOpen: false,
+      narrativeRecapOpen: false,
       inventoryOpen: false,
       investigationBoardOpen: false,
       cassettePlayerOpen: false,
@@ -381,6 +407,7 @@ export const useGameState = create<GameState>((set, get) => ({
       radioTunerOpen: false,
       noteViewerOpen: false,
       choiceModalOpen: false,
+      narrativeRecapOpen: false,
       inventoryOpen: false,
       investigationBoardOpen: false,
       cassettePlayerOpen: false,
@@ -517,6 +544,26 @@ export const useGameState = create<GameState>((set, get) => ({
     set({ investigationBoardOpen: false });
   },
 
+  openNarrativeRecap: () => {
+    soundEngine.playUIClick();
+    set({ narrativeRecapOpen: true, isPaused: false });
+  },
+
+  closeNarrativeRecap: () => {
+    soundEngine.playUIClick();
+    set({ narrativeRecapOpen: false });
+  },
+
+  canTriggerUnknownSignal: () => {
+    const evidence = get().evidenceUnlocked;
+    const inventory = get().inventory;
+    // Condition for 3rd ending: Has collected Cassette Tape B or unlocked deeper timeline paradox evidence
+    const hasTapeB = inventory.includes('cassette_tape_b') || evidence.includes('tape_a_recording');
+    const hasTimelineClue = evidence.includes('time_loop_evidence') || evidence.includes('sleeping_quarters_photo');
+    const hasDossier = evidence.includes('operator_final_dossier') || evidence.includes('station_blueprint_grid');
+    return hasTapeB && (hasTimelineClue || hasDossier);
+  },
+
   // --- RADIO MODAL ---
   openRadioTuner: () => {
     soundEngine.playUIClick();
@@ -582,6 +629,8 @@ export const useGameState = create<GameState>((set, get) => ({
       get().unlockEvidence('black_tide_incident');
     } else if (note.id === 'eli_diary_note_01') {
       get().unlockEvidence('time_loop_evidence');
+    } else if (note.id === 'operator_final_log') {
+      get().unlockEvidence('operator_final_dossier');
     }
     set({ noteViewerOpen: true, activeNote: note });
   },
@@ -637,9 +686,15 @@ export const useGameState = create<GameState>((set, get) => ({
 
     if (freqOk && powerOk && azimuthOk) {
       if (!get().isBeaconCalibrated) {
-        set({ isBeaconCalibrated: true });
+        set({
+          isBeaconCalibrated: true,
+          signalTowerUnlocked: true,
+          tensionLevel: 3,
+        });
         soundEngine.playCalibrationComplete();
-        get().showSubtitles("BEACON CALIBRATION OPTIMAL: Resonance 100%. Auxiliary optical beam primed.", 6000);
+        get().unlockEvidence('signal_tower_array');
+        get().showSubtitles("BEACON CALIBRATION OPTIMAL: Resonance 100%. Signal Tower upper ladder hatch unlocked!", 6500);
+        get().setObjective(8); // Ascend to Signal Tower
       }
       return true;
     }
@@ -689,8 +744,8 @@ export const useGameState = create<GameState>((set, get) => ({
     set({ choiceModalOpen: false });
   },
 
-  triggerEnding: (ending: 'BEACON' | 'SILENT_FREQUENCY') => {
-    set({ choiceModalOpen: false, activeEnding: ending, hasCompletedBefore: true });
+  triggerEnding: (ending: 'BEACON' | 'SILENT_FREQUENCY' | 'UNKNOWN_SIGNAL') => {
+    set({ choiceModalOpen: false, narrativeRecapOpen: false, activeEnding: ending, hasCompletedBefore: true });
 
     const unlocked = { ...get().endingsUnlocked };
     if (ending === 'BEACON') {
@@ -699,10 +754,18 @@ export const useGameState = create<GameState>((set, get) => ({
       soundEngine.speakRadioTransmission(RADIO_TRANSCRIPTS.BEACON_ENDING, () => {
         get().showSubtitles(`RADIO: "${RADIO_TRANSCRIPTS.BEACON_ENDING}"`, 8000);
       });
-    } else {
+    } else if (ending === 'SILENT_FREQUENCY') {
       unlocked.silentFrequency = true;
       soundEngine.playLightFlicker();
       get().showSubtitles(`RADIO: "${RADIO_TRANSCRIPTS.SILENT_ENDING}"`, 8000);
+    } else if (ending === 'UNKNOWN_SIGNAL') {
+      unlocked.unknownSignal = true;
+      soundEngine.playBeaconSound();
+      get().unlockEvidence('operator_final_dossier');
+      get().unlockEvidence('signal_tower_array');
+      soundEngine.speakRadioTransmission(RADIO_TRANSCRIPTS.UNKNOWN_SIGNAL_ENDING, () => {
+        get().showSubtitles(`RADIO: "${RADIO_TRANSCRIPTS.UNKNOWN_SIGNAL_ENDING}"`, 9000);
+      });
     }
 
     set({ endingsUnlocked: unlocked });
@@ -725,12 +788,13 @@ export const useGameState = create<GameState>((set, get) => ({
   resetAllProgress: () => {
     try {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem('DEAD_AIR_SIGNAL_13_SAVE_V2');
     } catch (e) {
       console.warn("Failed to clear local storage", e);
     }
     set({
       hasCompletedBefore: false,
-      endingsUnlocked: { beacon: false, silentFrequency: false },
+      endingsUnlocked: { beacon: false, silentFrequency: false, unknownSignal: false },
       gameStarted: false,
     });
   },
