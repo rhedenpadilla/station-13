@@ -1,5 +1,5 @@
 import { useGameState } from '../../game/state/useGameState';
-import { X, Award, Flame, Power, Lock, CheckCircle } from 'lucide-react';
+import { X, Award, Flame, Power, Sparkles, CheckCircle } from 'lucide-react';
 
 interface Props {
   onClose: () => void;
@@ -8,9 +8,14 @@ interface Props {
 export function EndingsGalleryModal({ onClose }: Props) {
   const endingsUnlocked = useGameState((state) => state.endingsUnlocked);
 
+  const unlockedCount =
+    (endingsUnlocked.beacon ? 1 : 0) +
+    (endingsUnlocked.silentFrequency ? 1 : 0) +
+    (endingsUnlocked.unknownSignal ? 1 : 0);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in text-slate-100 font-mono select-none">
-      <div className="relative w-full max-w-3xl bg-[#0F172A] border-4 border-[#334155] rounded-2xl shadow-2xl overflow-hidden p-6 flex flex-col gap-6">
+      <div className="relative w-full max-w-4xl bg-[#0F172A] border-4 border-[#334155] rounded-2xl shadow-2xl overflow-hidden p-6 flex flex-col gap-6">
         {/* Header */}
         <div className="flex justify-between items-center border-b border-[#334155] pb-3">
           <div className="flex items-center gap-3">
@@ -22,7 +27,7 @@ export function EndingsGalleryModal({ onClose }: Props) {
                 TIMELINE ARCHIVES & ENDINGS GALLERY
               </h2>
               <p className="text-xs text-slate-400">
-                Endings Discovered: {(endingsUnlocked.beacon ? 1 : 0) + (endingsUnlocked.silentFrequency ? 1 : 0)} / 2
+                Endings Discovered: {unlockedCount} / 3 ({Math.round((unlockedCount / 3) * 100)}% Complete)
               </p>
             </div>
           </div>
@@ -104,22 +109,36 @@ export function EndingsGalleryModal({ onClose }: Props) {
             </div>
           </div>
 
-          {/* Ending C: Unknown Signal (Phase 3 Silhouette) */}
-          <div className="p-4 rounded-xl border bg-[#07111F]/30 border-[#1E293B] opacity-50 flex flex-col justify-between gap-3 border-dashed">
+          {/* Ending C: Unknown Signal */}
+          <div
+            className={`p-4 rounded-xl border flex flex-col justify-between gap-3 ${
+              endingsUnlocked.unknownSignal
+                ? 'bg-[#2E1065]/60 border-[#A855F7]/70 shadow-[0_0_15px_rgba(168,85,247,0.25)]'
+                : 'bg-[#07111F]/50 border-[#1E293B] opacity-60'
+            }`}
+          >
             <div className="flex justify-between items-center">
-              <div className="p-2 rounded-lg bg-[#07111F] text-slate-500">
-                <Lock className="w-6 h-6" />
+              <div className="p-2 rounded-lg bg-[#07111F] text-[#C084FC]">
+                <Sparkles className="w-6 h-6" />
               </div>
-              <span className="text-[10px] text-slate-500 bg-[#0F172A] px-2 py-0.5 rounded border border-slate-700">
-                RESERVED PHASE 3
-              </span>
+              {endingsUnlocked.unknownSignal ? (
+                <span className="text-[10px] text-[#63D471] bg-[#1E293B] px-2 py-0.5 rounded font-bold flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3" /> UNLOCKED
+                </span>
+              ) : (
+                <span className="text-[10px] text-slate-500 bg-[#1E293B] px-2 py-0.5 rounded">
+                  LOCKED
+                </span>
+              )}
             </div>
 
             <div>
-              <span className="text-[10px] text-slate-500 font-bold block mb-0.5">ENDING 3</span>
-              <h3 className="text-sm font-bold text-slate-400">UNKNOWN SIGNAL</h3>
-              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                A third anomalous transmission hidden beneath the flooded pump room and lighthouse dome. Coming in Phase 3.
+              <span className="text-[10px] text-[#C084FC] font-bold block mb-0.5">ENDING 3</span>
+              <h3 className="text-sm font-bold text-slate-100">UNKNOWN SIGNAL</h3>
+              <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                {endingsUnlocked.unknownSignal
+                  ? "You locked the 13.13 MHz carrier across all bands, synchronizing past and present into a timeless anomaly."
+                  : "Uncover optional evidence across Station 13 and resonate the carrier wave at the Upper Signal Tower to discover the true nature of the loop."}
               </p>
             </div>
           </div>
