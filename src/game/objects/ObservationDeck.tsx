@@ -146,6 +146,60 @@ export function ObservationDeck() {
         )}
       </group>
 
+      {/* --- BEACON CALIBRATION CONSOLE (Observation Deck Overlook, X = 0, Z = 18.8) --- */}
+      <group position={[0, 0.8, 18.8]}>
+        <mesh castShadow receiveShadow>
+          <boxGeometry args={[1.4, 1.0, 0.5]} />
+          <meshStandardMaterial color="#1E293B" metalness={0.8} roughness={0.3} />
+        </mesh>
+        <mesh position={[0, 0.25, -0.26]} rotation={[-0.3, Math.PI, 0]}>
+          <planeGeometry args={[1.1, 0.5]} />
+          <meshBasicMaterial color="#0B132B" />
+        </mesh>
+        <Text position={[0, 0.35, -0.27]} rotation={[-0.3, Math.PI, 0]} fontSize={0.06} color="#39D9E6">
+          BEACON CALIBRATION
+        </Text>
+        <Text position={[0, 0.22, -0.27]} rotation={[-0.3, Math.PI, 0]} fontSize={0.04} color="#F5B960">
+          [PRESS E TO CALIBRATE]
+        </Text>
+      </group>
+
+      {/* --- SIGNAL TOWER ACCESS LADDER & OVERHEAD HATCH (East side, X = 3.2, Z = 14.5) --- */}
+      <group position={[3.2, 0, 14.5]}>
+        {/* Ladder Rails */}
+        <mesh position={[-0.2, 2.0, 0]}>
+          <cylinderGeometry args={[0.025, 0.025, 4.0, 8]} />
+          <meshStandardMaterial color="#94A3B8" metalness={0.8} />
+        </mesh>
+        <mesh position={[0.2, 2.0, 0]}>
+          <cylinderGeometry args={[0.025, 0.025, 4.0, 8]} />
+          <meshStandardMaterial color="#94A3B8" metalness={0.8} />
+        </mesh>
+        {/* Ladder Rungs */}
+        {[0.4, 0.8, 1.2, 1.6, 2.0, 2.4, 2.8, 3.2, 3.6].map((y) => (
+          <mesh key={y} position={[0, y, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.018, 0.018, 0.4, 8]} />
+            <meshStandardMaterial color="#CBD5E1" metalness={0.9} />
+          </mesh>
+        ))}
+
+        {/* Ceiling Hatch */}
+        <mesh position={[0, 3.85, 0]}>
+          <boxGeometry args={[1.0, 0.1, 1.0]} />
+          <meshStandardMaterial color="#0F172A" metalness={0.9} />
+        </mesh>
+
+        {/* Access Sign */}
+        <group position={[-0.4, 1.8, 0]} rotation={[0, -Math.PI / 2, 0]}>
+          <Text fontSize={0.07} color="#39D9E6">
+            ▲ SIGNAL TOWER
+          </Text>
+          <Text position={[0, -0.1, 0]} fontSize={0.045} color="#9FB3C8">
+            UPPER BEACON DECK
+          </Text>
+        </group>
+      </group>
+
       {/* --- STORMY OCEAN SURFACE (Deep Below Deck) --- */}
       <mesh ref={oceanRef} position={[0, -2.5, 30]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[120, 100, 32, 32]} />
