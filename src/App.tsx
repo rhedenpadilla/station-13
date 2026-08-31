@@ -9,6 +9,7 @@ import { InventoryUI } from './components/GameUI/InventoryUI';
 import { InvestigationBoardUI } from './components/GameUI/InvestigationBoardUI';
 import { CassettePlayerUI } from './components/GameUI/CassettePlayerUI';
 import { BeaconCalibrationUI } from './components/GameUI/BeaconCalibrationUI';
+import { NarrativeRecapModal } from './components/GameUI/NarrativeRecapModal';
 import { ChoiceModal } from './components/GameUI/ChoiceModal';
 import { EndingScreen } from './components/GameUI/EndingScreen';
 import { GameOverScreen } from './components/GameUI/GameOverScreen';
@@ -22,6 +23,7 @@ export function App() {
   const investigationBoardOpen = useGameState((state) => state.investigationBoardOpen);
   const cassettePlayerOpen = useGameState((state) => state.cassettePlayerOpen);
   const beaconCalibrationOpen = useGameState((state) => state.beaconCalibrationOpen);
+  const narrativeRecapOpen = useGameState((state) => state.narrativeRecapOpen);
   const choiceModalOpen = useGameState((state) => state.choiceModalOpen);
   const activeEnding = useGameState((state) => state.activeEnding);
   const isGameOver = useGameState((state) => state.isGameOver);
@@ -32,7 +34,7 @@ export function App() {
         <TitleScreen />
       ) : (
         <div className="relative w-full h-full">
-          {/* 3D R3F Game Canvas (6 Stations, Weather, Player) */}
+          {/* 3D R3F Game Canvas (7 Stations including Signal Tower, Weather, Player) */}
           <StationScene />
 
           {/* In-Game HUD: Objectives, Sub-Goals, Telemetry, Crosshair */}
@@ -48,6 +50,7 @@ export function App() {
           {investigationBoardOpen && <InvestigationBoardUI />}
           {cassettePlayerOpen && <CassettePlayerUI />}
           {beaconCalibrationOpen && <BeaconCalibrationUI />}
+          {narrativeRecapOpen && <NarrativeRecapModal />}
           {choiceModalOpen && <ChoiceModal />}
           {activeEnding && <EndingScreen />}
           {isGameOver && <GameOverScreen />}
