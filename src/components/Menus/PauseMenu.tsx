@@ -97,7 +97,19 @@ export function PauseMenu() {
             className="flex items-center justify-center gap-2.5 py-2.5 bg-[#1E293B] hover:bg-[#334155] border border-[#334155] rounded-xl text-xs font-bold text-[#F5B960] transition-colors"
           >
             <Award className="w-4 h-4" />
-            Timeline Archives & Endings
+            Timeline Archives & Endings (3)
+          </button>
+
+          {/* Narrative Dossier Recap */}
+          <button
+            onClick={() => {
+              resumeGame();
+              useGameState.getState().openNarrativeRecap();
+            }}
+            className="flex items-center justify-center gap-2.5 py-2.5 bg-[#1E293B] hover:bg-[#334155] border border-[#334155] rounded-xl text-xs font-bold text-[#93C5FD] transition-colors"
+          >
+            <Compass className="w-4 h-4 text-[#39D9E6]" />
+            Narrative Dossier & Clues Recap
           </button>
 
           {/* Settings */}
