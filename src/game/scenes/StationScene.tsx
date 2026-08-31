@@ -5,6 +5,7 @@ import { ObservationDeck } from '../objects/ObservationDeck';
 import { GeneratorRoom } from '../objects/GeneratorRoom';
 import { ArchiveRoom } from '../objects/ArchiveRoom';
 import { SleepingQuarters } from '../objects/SleepingQuarters';
+import { SignalTower } from '../objects/SignalTower';
 import { WeatherEffects } from '../objects/WeatherEffects';
 import { PlayerController } from '../systems/PlayerController';
 import { useGameState } from '../state/useGameState';
@@ -29,6 +30,7 @@ export function StationScene() {
         <GeneratorRoom />
         <ArchiveRoom />
         <SleepingQuarters />
+        <SignalTower />
 
         {/* Rain, Lightning, and Volumetric Atmosphere */}
         <WeatherEffects />
