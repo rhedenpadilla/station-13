@@ -12,6 +12,10 @@ import {
   BEACON_CALIBRATION_DOC,
   OPERATOR_FINAL_LOG,
 } from '../constants/gameData';
+import {
+  VANCE_UNSENT_LETTER,
+  HYDROGRAPHIC_SURVEY_NOTE,
+} from '../state/variationManager';
 
 export function PlayerController() {
   const { camera, gl } = useThree();
@@ -30,6 +34,9 @@ export function PlayerController() {
   const investigationBoardOpen = useGameState((state) => state.investigationBoardOpen);
   const cassettePlayerOpen = useGameState((state) => state.cassettePlayerOpen);
   const beaconCalibrationOpen = useGameState((state) => state.beaconCalibrationOpen);
+  const snapshotJournalOpen = useGameState((state) => state.snapshotJournalOpen);
+  const chapterSelectOpen = useGameState((state) => state.chapterSelectOpen);
+  const objectiveHistoryOpen = useGameState((state) => state.objectiveHistoryOpen);
 
   // Progression Flags
   const currentObjectiveIndex = useGameState((state) => state.currentObjectiveIndex);
@@ -45,6 +52,7 @@ export function PlayerController() {
   const hasPlayedTapeA = useGameState((state) => state.hasPlayedTapeA);
   const hasTunedSecondFrequency = useGameState((state) => state.hasTunedSecondFrequency);
   const isBeaconCalibrated = useGameState((state) => state.isBeaconCalibrated);
+  const isNewGamePlus = useGameState((state) => state.isNewGamePlus);
 
   // Controls & Settings
   const flashlightOn = useGameState((state) => state.flashlightOn);
@@ -55,6 +63,7 @@ export function PlayerController() {
   const setSector = useGameState((state) => state.setSector);
   const adjustSanity = useGameState((state) => state.adjustSanity);
   const setInteractionPrompt = useGameState((state) => state.setInteractionPrompt);
+  const unlockSnapshot = useGameState((state) => state.unlockSnapshot);
   const settings = useGameState((state) => state.settings);
 
   // Actions
@@ -81,6 +90,11 @@ export function PlayerController() {
   const isLocked = useRef(false);
   const lastInteractCount = useRef(virtualInteractCount);
 
+  // Hold-to-interact key state
+  const isHoldingKeyE = useRef(false);
+  const keyEStartTime = useRef(0);
+  const keyEFrame = useRef<number | null>(null);
+
   // Flashlight target helper
   const spotLightRef = useRef<THREE.SpotLight>(null);
   const spotTargetRef = useRef<THREE.Object3D>(null);
@@ -99,6 +113,9 @@ export function PlayerController() {
     investigationBoardOpen ||
     cassettePlayerOpen ||
     beaconCalibrationOpen ||
+    snapshotJournalOpen ||
+    chapterSelectOpen ||
+    objectiveHistoryOpen ||
     !!activeEnding;
 
   // Keyboard, Pointer Lock & Look
@@ -126,12 +143,39 @@ export function PlayerController() {
       }
 
       if (e.code === 'KeyE') {
-        handleInteraction();
+        if (settings.interactMode === 'PRESS') {
+          handleInteraction();
+        } else if (!isHoldingKeyE.current) {
+          isHoldingKeyE.current = true;
+          keyEStartTime.current = performance.now();
+
+          const checkKeyHold = () => {
+            if (!isHoldingKeyE.current) return;
+            const elapsed = (performance.now() - keyEStartTime.current) / 1000;
+            const targetDuration = Math.max(0.2, settings.interactHoldDuration || 0.6);
+
+            if (elapsed >= targetDuration) {
+              isHoldingKeyE.current = false;
+              handleInteraction();
+            } else {
+              keyEFrame.current = requestAnimationFrame(checkKeyHold);
+            }
+          };
+
+          keyEFrame.current = requestAnimationFrame(checkKeyHold);
+        }
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
       keys.current[e.code] = false;
+      if (e.code === 'KeyE') {
+        isHoldingKeyE.current = false;
+        if (keyEFrame.current) {
+          cancelAnimationFrame(keyEFrame.current);
+          keyEFrame.current = null;
+        }
+      }
     };
 
     const handleMouseMove = (e: MouseEvent) => {
@@ -165,8 +209,11 @@ export function PlayerController() {
       window.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('pointerlockchange', handlePointerLockChange);
       gl.domElement.removeEventListener('click', handleCanvasClick);
+      if (keyEFrame.current) {
+        cancelAnimationFrame(keyEFrame.current);
+      }
     };
-  }, [gl, isPaused, gameStarted, isModalActive, settings.mouseSensitivity]);
+  }, [gl, isPaused, gameStarted, isModalActive, settings.mouseSensitivity, settings.interactMode, settings.interactHoldDuration]);
 
   // Touch look-drag processing
   useEffect(() => {
@@ -198,6 +245,7 @@ export function PlayerController() {
       // 1. Signal Tower Upper Terminal (~ [0, 5.65, 18.2])
       const distToTowerTerminal = p.distanceTo(new THREE.Vector3(0, 5.65, 18.2));
       if (distToTowerTerminal < 2.2) {
+        unlockSnapshot('snap_beacon_optical_array');
         openChoiceModal();
         return;
       }
@@ -205,6 +253,7 @@ export function PlayerController() {
       // 2. Signal Tower 1986 Logbook Dossier (~ [-2.2, 5.65, 16.0])
       const distToTowerDossier = p.distanceTo(new THREE.Vector3(-2.2, 5.65, 16.0));
       if (distToTowerDossier < 2.0) {
+        unlockSnapshot('snap_tower_dossier');
         openNoteViewer(OPERATOR_FINAL_LOG);
         return;
       }
@@ -239,6 +288,7 @@ export function PlayerController() {
     // 2. Maintenance Shift Handover Note (~ [-0.5, 1.6, -1.7])
     const distToMaint = p.distanceTo(new THREE.Vector3(-0.5, 1.6, -1.7));
     if (distToMaint < 1.6) {
+      unlockSnapshot('snap_vance_letter');
       openNoteViewer(MAINTENANCE_NOTE);
       return;
     }
@@ -262,6 +312,7 @@ export function PlayerController() {
     // 5. Observation Deck Beacon Calibration Console (~ [0, 1.6, 18.2])
     const distToBeaconConsole = p.distanceTo(new THREE.Vector3(0, 1.6, 18.2));
     if (distToBeaconConsole < 2.2) {
+      unlockSnapshot('snap_beacon_optical_array');
       openBeaconCalibration();
       return;
     }
@@ -292,7 +343,10 @@ export function PlayerController() {
     // 8. Archive Room - Central Table Documents (~ [-4.2, 1.6, 5.8])
     const distToArchiveDesk = p.distanceTo(new THREE.Vector3(-4.2, 1.6, 5.8));
     if (distToArchiveDesk < 1.8) {
-      if (p.x < -4.4) {
+      if (p.x < -4.8 && isNewGamePlus) {
+        openNoteViewer(VANCE_UNSENT_LETTER);
+      } else if (p.x < -4.4) {
+        unlockSnapshot('snap_black_tide_file');
         openNoteViewer(BLACK_TIDE_REPORT);
       } else if (p.x > -4.0) {
         if (!hasCollectedMapPiece) {
@@ -343,18 +397,23 @@ export function PlayerController() {
       if (!hasFoundArchiveKey) {
         collectItem('archive_key');
         unlockEvidence('sleeping_quarters_photo');
+        unlockSnapshot('snap_shifting_photo');
         useGameState.setState({ hasFoundArchiveKey: true, photoChanged: true });
         useGameState.getState().showSubtitles("Behind the frame: Found Archive Cabinet Key (ARCH-02)!", 5000);
       } else {
+        unlockSnapshot('snap_shifting_photo');
         useGameState.getState().showSubtitles("Photo: The faces in the 1986 crew frame seem to shift under the light.", 4000);
       }
       return;
     }
 
-    // 12. Sleeping Quarters - Operator's Desk & Diary (~ [-4.2, 1.6, 13.0])
+    // 12. Sleeping Quarters - Operator's Desk, Diary & Chart (~ [-4.2, 1.6, 13.0])
     const distToDiaryDesk = p.distanceTo(new THREE.Vector3(-4.2, 1.6, 13.0));
     if (distToDiaryDesk < 1.8) {
-      if (p.x > -3.9 && !useGameState.getState().hasItem('cassette_tape_b')) {
+      unlockSnapshot('snap_glitched_clock');
+      if (p.x < -4.6 && isNewGamePlus) {
+        openNoteViewer(HYDROGRAPHIC_SURVEY_NOTE);
+      } else if (p.x > -3.9 && !useGameState.getState().hasItem('cassette_tape_b')) {
         collectItem('cassette_tape_b');
       } else {
         openNoteViewer(ELI_DIARY_NOTE);
@@ -497,8 +556,8 @@ export function PlayerController() {
       pos.current.z = nextZ;
     }
 
-    // Camera Head Bob
-    const bobOffset = isMoving ? Math.sin(headBobTimer.current) * 0.04 : 0;
+    // Camera Head Bob (Respecting Reduced Motion Accessibility Setting)
+    const bobOffset = isMoving && !settings.reducedMotion ? Math.sin(headBobTimer.current) * 0.04 : 0;
     camera.position.set(pos.current.x, pos.current.y + bobOffset, pos.current.z);
 
     // Apply Camera Rotation
@@ -517,6 +576,7 @@ export function PlayerController() {
     // --- PROXIMITY INTERACTION DETECTION & DYNAMIC PROMPTS ---
     const currPos = pos.current;
     let prompt: string | null = null;
+    const interactVerb = settings.interactMode === 'HOLD' ? 'Hold [E]' : 'Press [E]';
 
     if (currPos.y > 3.5) {
       // In Signal Tower
@@ -525,11 +585,11 @@ export function PlayerController() {
       const distToTowerHatch = currPos.distanceTo(new THREE.Vector3(2.2, 5.65, 14.5));
 
       if (distToTowerTerminal < 2.2) {
-        prompt = "Press [E] to Transmit Final Signal / Review Dossier";
+        prompt = `${interactVerb} to Transmit Final Signal / Review Dossier`;
       } else if (distToTowerDossier < 2.0) {
-        prompt = "Press [E] to Read 1986 Signal Tower Dossier";
+        prompt = `${interactVerb} to Read 1986 Signal Tower Dossier`;
       } else if (distToTowerHatch < 2.2) {
-        prompt = "Press [E] to Descend to Observation Deck";
+        prompt = `${interactVerb} to Descend to Observation Deck`;
       }
     } else {
       const distToRadio = currPos.distanceTo(new THREE.Vector3(0, 1.6, -1.6));
@@ -547,62 +607,70 @@ export function PlayerController() {
 
       if (distToRadio < 1.8) {
         if (isBeaconCalibrated) {
-          prompt = "Press [E] to Make Decision on Signal 13";
+          prompt = `${interactVerb} to Make Decision on Signal 13`;
         } else if (hasTunedSecondFrequency) {
-          prompt = "Press [E] to Calibrate Emergency Beacon";
+          prompt = `${interactVerb} to Calibrate Emergency Beacon`;
         } else {
           prompt = currentObjectiveIndex === 0
-            ? "Press [E] to Inspect Radio Console"
-            : "Press [E] to Tune HF Transceiver";
+            ? `${interactVerb} to Inspect Radio Console`
+            : `${interactVerb} to Tune HF Transceiver`;
         }
       } else if (distToLadder < 2.2) {
         prompt = (signalTowerUnlocked || isBeaconCalibrated)
-          ? "Press [E] to Climb Ladder to Signal Tower"
+          ? `${interactVerb} to Climb Ladder to Signal Tower`
           : "Signal Tower Ladder (Locked - Requires Beacon Calibration)";
       } else if (distToMaint < 1.6) {
-        prompt = "Press [E] to Read Shift Handover Note";
+        prompt = `${interactVerb} to Read Shift Handover Note`;
       } else if (distToLog < 1.6) {
-        prompt = "Press [E] to Read Station Weather Log";
+        prompt = `${interactVerb} to Read Station Weather Log`;
       } else if (distToCabinet < 1.9) {
         prompt = hasCollectedFuse
           ? "Supply Locker (Empty)"
-          : "Press [E] to Take 200A Ceramic Emergency Fuse";
+          : `${interactVerb} to Take 200A Ceramic Emergency Fuse`;
       } else if (distToGen < 1.9) {
         if (hasRestoredPower) {
           prompt = "Auxiliary Generator Online (Operational)";
         } else if (hasCollectedFuse) {
-          prompt = "Press [E] to Insert Fuse & Restore Auxiliary Power";
+          prompt = `${interactVerb} to Insert Fuse & Restore Auxiliary Power`;
         } else {
           prompt = "Generator Breaker (Requires 200A Ceramic Fuse)";
         }
       } else if (distToBeaconConsole < 2.2) {
         prompt = isBeaconCalibrated
           ? "Beacon Calibrated (Resonance 100%)"
-          : "Press [E] to Calibrate Beacon Optical Relay";
+          : `${interactVerb} to Calibrate Beacon Optical Relay`;
       } else if (distToTapeRecorder < 1.7) {
-        prompt = "Press [E] to Use Archive Tape Deck";
+        prompt = `${interactVerb} to Use Archive Tape Deck`;
       } else if (distToArchiveDesk < 1.8) {
-        prompt = !hasCollectedMapPiece
-          ? "Press [E] to Inspect Blueprint & Incident Records"
-          : "Press [E] to Read Black Tide Incident File";
+        if (currPos.x < -4.8 && isNewGamePlus) {
+          prompt = `${interactVerb} to Read Vance's Unsent Letter`;
+        } else if (!hasCollectedMapPiece) {
+          prompt = `${interactVerb} to Inspect Blueprint & Incident Records`;
+        } else {
+          prompt = `${interactVerb} to Read Black Tide Incident File`;
+        }
       } else if (distToArchCabinet < 1.9) {
         if (archiveCabinetUnlocked) {
           prompt = useGameState.getState().hasItem('cassette_tape_a')
             ? "Cabinet ARCH-02 (Empty)"
-            : "Press [E] to Take Cassette Tape #1";
+            : `${interactVerb} to Take Cassette Tape #1`;
         } else {
           prompt = useGameState.getState().hasItem('archive_key')
-            ? "Press [E] to Unlock Cabinet ARCH-02 with Key"
+            ? `${interactVerb} to Unlock Cabinet ARCH-02 with Key`
             : "Cabinet ARCH-02 (Locked - Key in Sector SQ-04)";
         }
       } else if (distToLockerPhoto < 1.8) {
         prompt = !hasFoundArchiveKey
-          ? "Press [E] to Inspect Crew Photograph (Retrieve Key)"
+          ? `${interactVerb} to Inspect Crew Photograph (Retrieve Key)`
           : "Crew Photograph (Eli Navarro 1986)";
       } else if (distToDiaryDesk < 1.8) {
-        prompt = !useGameState.getState().hasItem('cassette_tape_b')
-          ? "Press [E] to Take Cassette #2 & Read Operator's Diary"
-          : "Press [E] to Read Operator's Diary";
+        if (currPos.x < -4.6 && isNewGamePlus) {
+          prompt = `${interactVerb} to Inspect Hydrographic Trench Survey`;
+        } else if (!useGameState.getState().hasItem('cassette_tape_b')) {
+          prompt = `${interactVerb} to Take Cassette #2 & Read Operator's Diary`;
+        } else {
+          prompt = `${interactVerb} to Read Operator's Diary`;
+        }
       }
     }
 
