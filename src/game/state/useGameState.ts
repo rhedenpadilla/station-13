@@ -1,8 +1,27 @@
 import { create } from 'zustand';
 import { NoteData, OBJECTIVES, RADIO_TRANSCRIPTS } from '../constants/gameData';
-import { INVENTORY_ITEMS, InventoryItem } from '../constants/inventoryData';
-import { EVIDENCE_DATABASE, EvidenceItem } from '../constants/evidenceData';
+import { INVENTORY_ITEMS } from '../constants/inventoryData';
+import { EVIDENCE_DATABASE } from '../constants/evidenceData';
+import { SNAPSHOT_DATABASE } from '../constants/snapshotData';
+import { CHAPTER_LIST, createChapterInitialState } from '../constants/chapterData';
+import {
+  AUTHORED_VARIATIONS,
+  VANCE_UNSENT_LETTER,
+  HYDROGRAPHIC_SURVEY_NOTE,
+} from './variationManager';
 import { soundEngine } from '../audio/SoundEngine';
+import {
+  SaveDataV4,
+  GameSettingsV4,
+  loadSaveFromLocalStorage,
+  saveToLocalStorage,
+  clearAllGameStorage,
+  DEFAULT_PROGRESSION,
+  DEFAULT_PROFILE,
+  DEFAULT_SETTINGS,
+  DEFAULT_REPLAY,
+  CURRENT_SAVE_VERSION,
+} from './saveManager';
 
 export type EndingType = 'BEACON' | 'SILENT_FREQUENCY' | 'UNKNOWN_SIGNAL' | null;
 export type GraphicsQuality = 'LOW' | 'MEDIUM' | 'HIGH';
@@ -16,17 +35,10 @@ export type SectorType =
   | 'SLEEPING_QUARTERS'
   | 'SIGNAL_TOWER';
 
-export interface GameSettings {
-  masterVolume: number;
-  sfxVolume: number;
-  ambienceVolume: number;
-  musicVolume: number;
-  graphicsQuality: GraphicsQuality;
-  virtualControlsMode: VirtualControlsMode;
-  mouseSensitivity: number;
-  cameraShake: boolean;
-  reducedFlashing: boolean;
-  subtitlesEnabled: boolean;
+export interface BeaconSettings {
+  frequency: number;
+  power: number;
+  azimuth: number;
 }
 
 export interface VirtualMove {
@@ -37,23 +49,27 @@ export interface VirtualMove {
   sprint: boolean;
 }
 
-export interface BeaconSettings {
-  frequency: number;
-  power: number;
-  azimuth: number;
-}
-
 export interface GameState {
   // Navigation & Screens
   gameStarted: boolean;
   isPaused: boolean;
   activeEnding: EndingType;
   hasCompletedBefore: boolean;
+  totalPlaythroughs: number;
   endingsUnlocked: {
     beacon: boolean;
     silentFrequency: boolean;
     unknownSignal: boolean;
   };
+  witnessedEndings: string[];
+  unlockedChapters: string[];
+
+  // Replay & New Game+
+  isNewGamePlus: boolean;
+  isChapterReplay: boolean;
+  replayChapterId: string | null;
+  activeVariations: string[];
+  ngPlusVariationsEncountered: string[];
 
   // Game Over & Sanity
   isGameOver: boolean;
@@ -70,13 +86,16 @@ export interface GameState {
 
   // Story & Objectives
   currentObjectiveIndex: number;
+  objectiveHistory: number[];
   interactionPrompt: string | null;
   subtitles: string | null;
   subtitleTimer: ReturnType<typeof setTimeout> | null;
 
-  // Inventory & Evidence Systems
-  inventory: string[]; // List of item IDs
-  evidenceUnlocked: string[]; // List of evidence IDs
+  // Inventory, Evidence & Snapshot Systems
+  inventory: string[];
+  evidenceUnlocked: string[];
+  allDiscoveredEvidence: string[];
+  snapshots: string[];
   inspectedItemId: string | null;
 
   // Station & Room Unlock States
@@ -101,7 +120,7 @@ export interface GameState {
   beaconSettings: BeaconSettings;
 
   // Environmental Tension & Anomaly System
-  tensionLevel: number; // 0 to 4
+  tensionLevel: number;
   wetFootprintsVisible: boolean;
   photoChanged: boolean;
   sleepingQuartersClockGlitched: boolean;
@@ -124,12 +143,18 @@ export interface GameState {
   beaconCalibrationOpen: boolean;
   choiceModalOpen: boolean;
   narrativeRecapOpen: boolean;
+  snapshotJournalOpen: boolean;
+  chapterSelectOpen: boolean;
+  objectiveHistoryOpen: boolean;
+  controlsLayoutOpen: boolean;
 
   // Settings
-  settings: GameSettings;
+  settings: GameSettingsV4;
 
   // Actions
   startGame: () => void;
+  startNewGamePlus: () => void;
+  startChapterReplay: (chapterId: string) => void;
   pauseGame: () => void;
   resumeGame: () => void;
   exitToTitle: () => void;
@@ -151,10 +176,19 @@ export interface GameState {
   closeInventory: () => void;
   setInspectedItem: (itemId: string | null) => void;
 
-  // Evidence Actions
+  // Evidence & Snapshot Actions
   unlockEvidence: (evidenceId: string) => void;
+  unlockSnapshot: (snapshotId: string) => void;
   openInvestigationBoard: () => void;
   closeInvestigationBoard: () => void;
+  openSnapshotJournal: () => void;
+  closeSnapshotJournal: () => void;
+  openChapterSelect: () => void;
+  closeChapterSelect: () => void;
+  openObjectiveHistory: () => void;
+  closeObjectiveHistory: () => void;
+  openControlsLayout: () => void;
+  closeControlsLayout: () => void;
   openNarrativeRecap: () => void;
   closeNarrativeRecap: () => void;
   canTriggerUnknownSignal: () => boolean;
@@ -185,62 +219,42 @@ export interface GameState {
   unlockArchiveCabinet: () => void;
   completeTapeDecryption: () => void;
   triggerEnding: (ending: 'BEACON' | 'SILENT_FREQUENCY' | 'UNKNOWN_SIGNAL') => void;
+
+  // Reset Actions
   resetGame: () => void;
+  resetMainProgression: () => void;
   resetAllProgress: () => void;
-  updateSettings: (newSettings: Partial<GameSettings>) => void;
+  updateSettings: (newSettings: Partial<GameSettingsV4>) => void;
   triggerLightning: () => void;
+  persistCurrentState: () => void;
 }
 
-const STORAGE_KEY = 'DEAD_AIR_SIGNAL_13_SAVE_V3';
-
-const loadSavedData = () => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('DEAD_AIR_SIGNAL_13_SAVE_V2');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return {
-        ...parsed,
-        endingsUnlocked: {
-          beacon: !!parsed?.endingsUnlocked?.beacon,
-          silentFrequency: !!parsed?.endingsUnlocked?.silentFrequency,
-          unknownSignal: !!parsed?.endingsUnlocked?.unknownSignal,
-        },
-      };
-    }
-  } catch (e) {
-    console.warn("Failed to load local storage save", e);
-  }
-  return null;
-};
-
-const defaultSettings: GameSettings = {
-  masterVolume: 0.8,
-  sfxVolume: 0.9,
-  ambienceVolume: 0.7,
-  musicVolume: 0.75,
-  graphicsQuality: 'HIGH',
-  virtualControlsMode: 'AUTO',
-  mouseSensitivity: 1.0,
-  cameraShake: false,
-  reducedFlashing: false,
-  subtitlesEnabled: true,
-};
-
-const saved = loadSavedData();
+const initialSaved = loadSaveFromLocalStorage();
 
 export const useGameState = create<GameState>((set, get) => ({
+  // Navigation & Screens
   gameStarted: false,
   isPaused: false,
   activeEnding: null,
-  hasCompletedBefore: saved?.hasCompletedBefore || false,
-  endingsUnlocked: saved?.endingsUnlocked || { beacon: false, silentFrequency: false, unknownSignal: false },
+  hasCompletedBefore: initialSaved.profile.hasCompletedBefore,
+  totalPlaythroughs: initialSaved.profile.totalPlaythroughs,
+  endingsUnlocked: initialSaved.profile.endingsUnlocked,
+  witnessedEndings: initialSaved.profile.witnessedEndings,
+  unlockedChapters: initialSaved.profile.unlockedChapters,
+
+  // Replay State
+  isNewGamePlus: false,
+  isChapterReplay: false,
+  replayChapterId: null,
+  activeVariations: [],
+  ngPlusVariationsEncountered: initialSaved.profile.ngPlusVariationsEncountered,
 
   // Game Over & Sanity
   isGameOver: false,
   gameOverReason: null,
   gameOverCountdown: 4,
   sanity: 100,
-  currentSector: 'RADIO_ROOM',
+  currentSector: initialSaved.progression.currentSector || 'RADIO_ROOM',
 
   // Virtual Controls
   virtualMove: {
@@ -254,55 +268,58 @@ export const useGameState = create<GameState>((set, get) => ({
   flashlightOn: true,
   lookDragDelta: { x: 0, y: 0 },
 
-  // Objectives & Guidance
-  currentObjectiveIndex: 0,
+  // Story & Objectives
+  currentObjectiveIndex: initialSaved.progression.currentObjectiveIndex || 0,
+  objectiveHistory: initialSaved.progression.objectiveHistory || [0],
   interactionPrompt: null,
   subtitles: null,
   subtitleTimer: null,
 
   // Inventory & Evidence
-  inventory: [],
-  evidenceUnlocked: ['signal_13_first', 'former_operator_log'],
+  inventory: initialSaved.progression.inventory || [],
+  evidenceUnlocked: initialSaved.progression.evidenceUnlocked || ['signal_13_first', 'former_operator_log'],
+  allDiscoveredEvidence: initialSaved.profile.allDiscoveredEvidence || ['signal_13_first', 'former_operator_log'],
+  snapshots: initialSaved.profile.snapshots || [],
   inspectedItemId: null,
 
   // Station Doors & Locks
-  generatorDoorUnlocked: false,
-  archiveDoorUnlocked: false,
-  archiveCabinetUnlocked: false,
-  sleepingQuartersUnlocked: false,
-  signalTowerUnlocked: false,
+  generatorDoorUnlocked: initialSaved.progression.generatorDoorUnlocked || false,
+  archiveDoorUnlocked: initialSaved.progression.archiveDoorUnlocked || false,
+  archiveCabinetUnlocked: initialSaved.progression.archiveCabinetUnlocked || false,
+  sleepingQuartersUnlocked: initialSaved.progression.sleepingQuartersUnlocked || false,
+  signalTowerUnlocked: initialSaved.progression.signalTowerUnlocked || false,
 
   // Puzzle Flags
-  hasHeardFirstSignal: false,
-  hasReadMaintenanceNote: false,
-  hasCollectedFuse: false,
-  hasRestoredPower: false,
-  hasCollectedMapPiece: false,
-  hasFoundArchiveKey: false,
-  hasPlayedTapeA: false,
-  hasTunedSecondFrequency: false,
-  isBeaconCalibrated: false,
+  hasHeardFirstSignal: initialSaved.progression.hasHeardFirstSignal || false,
+  hasReadMaintenanceNote: initialSaved.progression.hasReadMaintenanceNote || false,
+  hasCollectedFuse: initialSaved.progression.hasCollectedFuse || false,
+  hasRestoredPower: initialSaved.progression.hasRestoredPower || false,
+  hasCollectedMapPiece: initialSaved.progression.hasCollectedMapPiece || false,
+  hasFoundArchiveKey: initialSaved.progression.hasFoundArchiveKey || false,
+  hasPlayedTapeA: initialSaved.progression.hasPlayedTapeA || false,
+  hasTunedSecondFrequency: initialSaved.progression.hasTunedSecondFrequency || false,
+  isBeaconCalibrated: initialSaved.progression.isBeaconCalibrated || false,
 
-  // Beacon Settings (Defaults)
-  beaconSettings: {
+  // Beacon Settings
+  beaconSettings: initialSaved.progression.beaconSettings || {
     frequency: 12.5,
     power: 30,
     azimuth: 120,
   },
 
   // Environmental Tension
-  tensionLevel: 0,
-  wetFootprintsVisible: false,
-  photoChanged: false,
+  tensionLevel: initialSaved.progression.tensionLevel || 0,
+  wetFootprintsVisible: initialSaved.progression.wetFootprintsVisible || false,
+  photoChanged: initialSaved.progression.photoChanged || false,
   sleepingQuartersClockGlitched: true,
   isLightningActive: false,
   seaLightVisible: false,
 
   // Modals
   radioTunerOpen: false,
-  currentFrequency: 12.82,
-  targetFrequency: 13.13,
-  signalLocked: false,
+  currentFrequency: initialSaved.progression.currentFrequency || 12.82,
+  targetFrequency: initialSaved.progression.targetFrequency || 13.13,
+  signalLocked: initialSaved.progression.signalLocked || false,
 
   noteViewerOpen: false,
   activeNote: null,
@@ -314,13 +331,22 @@ export const useGameState = create<GameState>((set, get) => ({
   beaconCalibrationOpen: false,
   choiceModalOpen: false,
   narrativeRecapOpen: false,
+  snapshotJournalOpen: false,
+  chapterSelectOpen: false,
+  objectiveHistoryOpen: false,
+  controlsLayoutOpen: false,
 
-  settings: saved?.settings ? { ...defaultSettings, ...saved.settings } : defaultSettings,
+  settings: initialSaved.settings || DEFAULT_SETTINGS,
 
+  // Start fresh campaign standard shift
   startGame: () => {
     soundEngine.init();
     const settings = get().settings;
     soundEngine.setVolumes(settings.masterVolume, settings.sfxVolume, settings.ambienceVolume, settings.musicVolume);
+
+    // Add first snapshots
+    get().unlockSnapshot('snap_vance_letter');
+    get().unlockSnapshot('snap_first_carrier');
 
     set({
       gameStarted: true,
@@ -331,7 +357,12 @@ export const useGameState = create<GameState>((set, get) => ({
       sanity: 100,
       currentSector: 'RADIO_ROOM',
       activeEnding: null,
+      isNewGamePlus: false,
+      isChapterReplay: false,
+      replayChapterId: null,
+      activeVariations: [],
       currentObjectiveIndex: 0,
+      objectiveHistory: [0],
       currentFrequency: 12.82,
       targetFrequency: 13.13,
       signalLocked: false,
@@ -353,6 +384,10 @@ export const useGameState = create<GameState>((set, get) => ({
       noteViewerOpen: false,
       choiceModalOpen: false,
       narrativeRecapOpen: false,
+      snapshotJournalOpen: false,
+      chapterSelectOpen: false,
+      objectiveHistoryOpen: false,
+      controlsLayoutOpen: false,
       inventoryOpen: false,
       investigationBoardOpen: false,
       cassettePlayerOpen: false,
@@ -367,7 +402,145 @@ export const useGameState = create<GameState>((set, get) => ({
       virtualMove: { forward: false, backward: false, left: false, right: false, sprint: false },
     });
 
+    get().persistCurrentState();
     get().showSubtitles("Gale-force storm escalating. Check the main radio console to monitor weather broadcasts.", 6000);
+  },
+
+  // Start New Game+ with preserved profile & deterministic story variations
+  startNewGamePlus: () => {
+    soundEngine.init();
+    const settings = get().settings;
+    soundEngine.setVolumes(settings.masterVolume, settings.sfxVolume, settings.ambienceVolume, settings.musicVolume);
+
+    const activeVars: string[] = ['VAR_RADIO_ECHO_1313', 'VAR_ARCHIVE_VANCE_LETTER', 'VAR_GLITCHED_CHART_ANOMALY'];
+    if (get().endingsUnlocked.silentFrequency || get().endingsUnlocked.unknownSignal) {
+      activeVars.push('VAR_OCEAN_TIMELINE_FLASH');
+    }
+
+    set({
+      gameStarted: true,
+      isPaused: false,
+      isGameOver: false,
+      gameOverReason: null,
+      gameOverCountdown: 4,
+      sanity: 100,
+      currentSector: 'RADIO_ROOM',
+      activeEnding: null,
+      isNewGamePlus: true,
+      isChapterReplay: false,
+      replayChapterId: null,
+      activeVariations: activeVars,
+      currentObjectiveIndex: 0,
+      objectiveHistory: [0],
+      currentFrequency: 12.82,
+      targetFrequency: 13.13,
+      signalLocked: false,
+      hasHeardFirstSignal: false,
+      hasReadMaintenanceNote: false,
+      hasCollectedFuse: false,
+      hasRestoredPower: false,
+      hasCollectedMapPiece: false,
+      hasFoundArchiveKey: false,
+      hasPlayedTapeA: false,
+      hasTunedSecondFrequency: false,
+      isBeaconCalibrated: false,
+      generatorDoorUnlocked: false,
+      archiveDoorUnlocked: false,
+      archiveCabinetUnlocked: false,
+      sleepingQuartersUnlocked: false,
+      signalTowerUnlocked: false,
+      radioTunerOpen: false,
+      noteViewerOpen: false,
+      choiceModalOpen: false,
+      narrativeRecapOpen: false,
+      snapshotJournalOpen: false,
+      chapterSelectOpen: false,
+      objectiveHistoryOpen: false,
+      controlsLayoutOpen: false,
+      inventoryOpen: false,
+      investigationBoardOpen: false,
+      cassettePlayerOpen: false,
+      beaconCalibrationOpen: false,
+      flashlightOn: true,
+      inventory: [],
+      evidenceUnlocked: ['signal_13_first', 'former_operator_log'],
+      tensionLevel: 0,
+      wetFootprintsVisible: false,
+      photoChanged: false,
+      beaconSettings: { frequency: 12.5, power: 30, azimuth: 120 },
+      virtualMove: { forward: false, backward: false, left: false, right: false, sprint: false },
+    });
+
+    get().unlockSnapshot('snap_vance_letter');
+    get().unlockSnapshot('snap_first_carrier');
+    get().persistCurrentState();
+    get().showSubtitles("NEW GAME+ ACTIVE: Timeline memories persist. Anomalous carrier harmonics detected.", 7000);
+  },
+
+  // Start Chapter Replay safely without corrupting main campaign save
+  startChapterReplay: (chapterId: string) => {
+    soundEngine.init();
+    const settings = get().settings;
+    soundEngine.setVolumes(settings.masterVolume, settings.sfxVolume, settings.ambienceVolume, settings.musicVolume);
+
+    const chapterState = createChapterInitialState(chapterId);
+
+    set({
+      gameStarted: true,
+      isPaused: false,
+      isGameOver: false,
+      gameOverReason: null,
+      gameOverCountdown: 4,
+      sanity: 100,
+      currentSector: chapterState.currentSector,
+      activeEnding: null,
+      isNewGamePlus: false,
+      isChapterReplay: true,
+      replayChapterId: chapterId,
+      activeVariations: ['VAR_RADIO_ECHO_1313', 'VAR_ARCHIVE_VANCE_LETTER'],
+      currentObjectiveIndex: chapterState.currentObjectiveIndex,
+      objectiveHistory: [chapterState.currentObjectiveIndex],
+      currentFrequency: chapterState.currentFrequency,
+      targetFrequency: chapterState.targetFrequency,
+      signalLocked: chapterState.signalLocked,
+      hasHeardFirstSignal: chapterState.hasHeardFirstSignal,
+      hasReadMaintenanceNote: chapterState.hasReadMaintenanceNote,
+      hasCollectedFuse: chapterState.hasCollectedFuse,
+      hasRestoredPower: chapterState.hasRestoredPower,
+      hasCollectedMapPiece: chapterState.hasCollectedMapPiece,
+      hasFoundArchiveKey: chapterState.hasFoundArchiveKey,
+      hasPlayedTapeA: chapterState.hasPlayedTapeA,
+      hasTunedSecondFrequency: chapterState.hasTunedSecondFrequency,
+      isBeaconCalibrated: chapterState.isBeaconCalibrated,
+      generatorDoorUnlocked: chapterState.generatorDoorUnlocked,
+      archiveDoorUnlocked: chapterState.archiveDoorUnlocked,
+      archiveCabinetUnlocked: chapterState.archiveCabinetUnlocked,
+      sleepingQuartersUnlocked: chapterState.sleepingQuartersUnlocked,
+      signalTowerUnlocked: chapterState.signalTowerUnlocked,
+      radioTunerOpen: false,
+      noteViewerOpen: false,
+      choiceModalOpen: false,
+      narrativeRecapOpen: false,
+      snapshotJournalOpen: false,
+      chapterSelectOpen: false,
+      objectiveHistoryOpen: false,
+      controlsLayoutOpen: false,
+      inventoryOpen: false,
+      investigationBoardOpen: false,
+      cassettePlayerOpen: false,
+      beaconCalibrationOpen: false,
+      flashlightOn: true,
+      inventory: chapterState.inventory,
+      evidenceUnlocked: chapterState.evidenceUnlocked,
+      tensionLevel: chapterState.tensionLevel,
+      wetFootprintsVisible: chapterState.wetFootprintsVisible,
+      photoChanged: chapterState.photoChanged,
+      beaconSettings: chapterState.beaconSettings,
+      virtualMove: { forward: false, backward: false, left: false, right: false, sprint: false },
+    });
+
+    const chapterInfo = CHAPTER_LIST.find((c) => c.id === chapterId);
+    get().showSubtitles(`REPLAY SESSION: Loaded ${chapterInfo?.title || chapterId}. Main campaign progress preserved.`, 6500);
   },
 
   pauseGame: () => {
@@ -380,6 +553,7 @@ export const useGameState = create<GameState>((set, get) => ({
 
   exitToTitle: () => {
     soundEngine.stopAllAudio();
+    get().persistCurrentState();
     set({
       gameStarted: false,
       isPaused: false,
@@ -388,6 +562,10 @@ export const useGameState = create<GameState>((set, get) => ({
       noteViewerOpen: false,
       choiceModalOpen: false,
       narrativeRecapOpen: false,
+      snapshotJournalOpen: false,
+      chapterSelectOpen: false,
+      objectiveHistoryOpen: false,
+      controlsLayoutOpen: false,
       inventoryOpen: false,
       investigationBoardOpen: false,
       cassettePlayerOpen: false,
@@ -408,6 +586,10 @@ export const useGameState = create<GameState>((set, get) => ({
       noteViewerOpen: false,
       choiceModalOpen: false,
       narrativeRecapOpen: false,
+      snapshotJournalOpen: false,
+      chapterSelectOpen: false,
+      objectiveHistoryOpen: false,
+      controlsLayoutOpen: false,
       inventoryOpen: false,
       investigationBoardOpen: false,
       cassettePlayerOpen: false,
@@ -466,8 +648,26 @@ export const useGameState = create<GameState>((set, get) => ({
   setObjective: (index: number) => {
     const clamped = Math.min(index, OBJECTIVES.length - 1);
     if (clamped !== get().currentObjectiveIndex) {
-      set({ currentObjectiveIndex: clamped });
+      const history = Array.from(new Set([...get().objectiveHistory, clamped]));
+      set({ currentObjectiveIndex: clamped, objectiveHistory: history });
       soundEngine.playObjectiveUpdate();
+
+      // Unlock corresponding chapter in chapter select
+      let chapterToUnlock: string | null = null;
+      if (clamped >= 2) chapterToUnlock = 'CH_2_FREQUENCY_1313';
+      if (clamped >= 3) chapterToUnlock = 'CH_3_BLACK_TIDE_RECORDS';
+      if (clamped >= 6) chapterToUnlock = 'CH_4_BEACON_CALIBRATION';
+      if (clamped >= 8) chapterToUnlock = 'CH_5_SIGNAL_TOWER';
+
+      if (chapterToUnlock && !get().unlockedChapters.includes(chapterToUnlock)) {
+        set((state) => ({
+          unlockedChapters: [...state.unlockedChapters, chapterToUnlock!],
+        }));
+      }
+
+      if (!get().isChapterReplay) {
+        get().persistCurrentState();
+      }
     }
   },
 
@@ -499,6 +699,9 @@ export const useGameState = create<GameState>((set, get) => ({
       if (item) {
         get().showSubtitles(`Collected: ${item.name}`, 4000);
       }
+      if (!get().isChapterReplay) {
+        get().persistCurrentState();
+      }
     }
   },
 
@@ -521,16 +724,32 @@ export const useGameState = create<GameState>((set, get) => ({
     if (itemId) soundEngine.playUIClick();
   },
 
-  // --- EVIDENCE & INVESTIGATION BOARD ---
+  // --- EVIDENCE & SNAPSHOT ACTIONS ---
   unlockEvidence: (evidenceId: string) => {
-    if (!get().evidenceUnlocked.includes(evidenceId)) {
-      set((state) => ({
-        evidenceUnlocked: [...state.evidenceUnlocked, evidenceId],
-      }));
+    const currentList = get().evidenceUnlocked;
+    const allList = get().allDiscoveredEvidence;
+
+    const nextCurrent = currentList.includes(evidenceId) ? currentList : [...currentList, evidenceId];
+    const nextAll = allList.includes(evidenceId) ? allList : [...allList, evidenceId];
+
+    if (!currentList.includes(evidenceId) || !allList.includes(evidenceId)) {
+      set({ evidenceUnlocked: nextCurrent, allDiscoveredEvidence: nextAll });
       const ev = EVIDENCE_DATABASE[evidenceId];
       if (ev) {
         get().showSubtitles(`Investigation Clue Added: ${ev.title}`, 4500);
       }
+      get().persistCurrentState();
+    }
+  },
+
+  unlockSnapshot: (snapshotId: string) => {
+    if (!SNAPSHOT_DATABASE[snapshotId]) return;
+    if (!get().snapshots.includes(snapshotId)) {
+      const updated = [...get().snapshots, snapshotId];
+      set({ snapshots: updated });
+      const snap = SNAPSHOT_DATABASE[snapshotId];
+      get().showSubtitles(`Snapshot Recorded: ${snap.title}`, 4500);
+      get().persistCurrentState();
     }
   },
 
@@ -542,6 +761,46 @@ export const useGameState = create<GameState>((set, get) => ({
   closeInvestigationBoard: () => {
     soundEngine.playUIClick();
     set({ investigationBoardOpen: false });
+  },
+
+  openSnapshotJournal: () => {
+    soundEngine.playUIClick();
+    set({ snapshotJournalOpen: true, isPaused: false });
+  },
+
+  closeSnapshotJournal: () => {
+    soundEngine.playUIClick();
+    set({ snapshotJournalOpen: false });
+  },
+
+  openChapterSelect: () => {
+    soundEngine.playUIClick();
+    set({ chapterSelectOpen: true });
+  },
+
+  closeChapterSelect: () => {
+    soundEngine.playUIClick();
+    set({ chapterSelectOpen: false });
+  },
+
+  openObjectiveHistory: () => {
+    soundEngine.playUIClick();
+    set({ objectiveHistoryOpen: true, isPaused: false });
+  },
+
+  closeObjectiveHistory: () => {
+    soundEngine.playUIClick();
+    set({ objectiveHistoryOpen: false });
+  },
+
+  openControlsLayout: () => {
+    soundEngine.playUIClick();
+    set({ controlsLayoutOpen: true });
+  },
+
+  closeControlsLayout: () => {
+    soundEngine.playUIClick();
+    set({ controlsLayoutOpen: false });
   },
 
   openNarrativeRecap: () => {
@@ -557,7 +816,6 @@ export const useGameState = create<GameState>((set, get) => ({
   canTriggerUnknownSignal: () => {
     const evidence = get().evidenceUnlocked;
     const inventory = get().inventory;
-    // Condition for 3rd ending: Has collected Cassette Tape B or unlocked deeper timeline paradox evidence
     const hasTapeB = inventory.includes('cassette_tape_b') || evidence.includes('tape_a_recording');
     const hasTimelineClue = evidence.includes('time_loop_evidence') || evidence.includes('sleeping_quarters_photo');
     const hasDossier = evidence.includes('operator_final_dossier') || evidence.includes('station_blueprint_grid');
@@ -582,7 +840,6 @@ export const useGameState = create<GameState>((set, get) => ({
     set({ currentFrequency: rounded });
     soundEngine.updateRadioStatic(rounded, get().targetFrequency, true);
 
-    // Check target locks
     const target = get().targetFrequency;
     if (Math.abs(rounded - target) < 0.04 && !get().signalLocked) {
       get().lockSignal();
@@ -597,11 +854,17 @@ export const useGameState = create<GameState>((set, get) => ({
 
     if (Math.abs(target - 13.13) < 0.05 && !get().hasHeardFirstSignal) {
       set({ hasHeardFirstSignal: true, generatorDoorUnlocked: true });
+      get().unlockSnapshot('snap_first_carrier');
+
+      const isNGP = get().isNewGamePlus;
+      const transcript = isNGP
+        ? `${RADIO_TRANSCRIPTS.FIRST_SIGNAL} [ECHO: "...The circuit remembers you..."]`
+        : RADIO_TRANSCRIPTS.FIRST_SIGNAL;
 
       setTimeout(() => {
-        soundEngine.speakRadioTransmission(RADIO_TRANSCRIPTS.FIRST_SIGNAL, () => {
-          get().showSubtitles(`RADIO: "${RADIO_TRANSCRIPTS.FIRST_SIGNAL}"`, 7000);
-          get().setObjective(2); // Find fuse & restore generator
+        soundEngine.speakRadioTransmission(transcript, () => {
+          get().showSubtitles(`RADIO: "${transcript}"`, 7500);
+          get().setObjective(2);
         });
       }, 600);
     } else if (Math.abs(target - 14.28) < 0.05 && !get().hasTunedSecondFrequency) {
@@ -609,11 +872,12 @@ export const useGameState = create<GameState>((set, get) => ({
       get().unlockEvidence('second_radio_frequency');
       get().collectItem('beacon_calibration_note');
       get().unlockEvidence('beacon_calibration_data');
+      get().unlockSnapshot('snap_ghost_freq_1428');
 
       setTimeout(() => {
         soundEngine.speakRadioTransmission(RADIO_TRANSCRIPTS.SECOND_SIGNAL_1428, () => {
           get().showSubtitles(`RADIO: "${RADIO_TRANSCRIPTS.SECOND_SIGNAL_1428}"`, 8000);
-          get().setObjective(7); // Calibrate beacon
+          get().setObjective(7);
         });
       }, 600);
     }
@@ -625,12 +889,22 @@ export const useGameState = create<GameState>((set, get) => ({
     if (note.id === 'maint_note_01') {
       set({ hasReadMaintenanceNote: true });
       get().unlockEvidence('former_operator_log');
+      get().unlockSnapshot('snap_vance_letter');
     } else if (note.id === 'black_tide_report_86') {
       get().unlockEvidence('black_tide_incident');
+      get().unlockSnapshot('snap_black_tide_file');
     } else if (note.id === 'eli_diary_note_01') {
       get().unlockEvidence('time_loop_evidence');
+      get().unlockSnapshot('snap_glitched_clock');
     } else if (note.id === 'operator_final_log') {
       get().unlockEvidence('operator_final_dossier');
+      get().unlockSnapshot('snap_tower_dossier');
+    } else if (note.id === 'vance_unsent_letter') {
+      get().unlockEvidence('former_operator_log');
+      get().unlockSnapshot('snap_vance_letter');
+    } else if (note.id === 'hydrographic_survey_note') {
+      get().unlockEvidence('black_tide_incident');
+      get().unlockSnapshot('snap_ocean_trench_light');
     }
     set({ noteViewerOpen: true, activeNote: note });
   },
@@ -658,7 +932,8 @@ export const useGameState = create<GameState>((set, get) => ({
       signalLocked: false,
     });
     get().unlockEvidence('tape_a_recording');
-    get().setObjective(6); // Tune to 14.28 MHz
+    get().unlockSnapshot('snap_ghost_freq_1428');
+    get().setObjective(6);
     get().showSubtitles("Tape Decoded: Spoken frequency intercepted -> 14.28 MHz. Return to Radio console.", 6000);
   },
 
@@ -693,8 +968,9 @@ export const useGameState = create<GameState>((set, get) => ({
         });
         soundEngine.playCalibrationComplete();
         get().unlockEvidence('signal_tower_array');
+        get().unlockSnapshot('snap_beacon_optical_array');
         get().showSubtitles("BEACON CALIBRATION OPTIMAL: Resonance 100%. Signal Tower upper ladder hatch unlocked!", 6500);
-        get().setObjective(8); // Ascend to Signal Tower
+        get().setObjective(8);
       }
       return true;
     }
@@ -719,8 +995,9 @@ export const useGameState = create<GameState>((set, get) => ({
       wetFootprintsVisible: true,
     });
 
+    get().unlockSnapshot('snap_ocean_trench_light');
     get().showSubtitles("Generator online. Auxiliary power active. Archive Room and Sleeping Quarters unlocked.", 6000);
-    get().setObjective(3); // Search archive room
+    get().setObjective(3);
   },
 
   unlockArchiveCabinet: () => {
@@ -730,8 +1007,9 @@ export const useGameState = create<GameState>((set, get) => ({
       tensionLevel: 2,
     });
     get().collectItem('cassette_tape_a');
+    get().unlockSnapshot('snap_black_tide_file');
     get().showSubtitles("Archive Security Cabinet Unlocked! Retrieved Cassette Tape #1.", 5000);
-    get().setObjective(5); // Play cassette
+    get().setObjective(5);
   },
 
   openChoiceModal: () => {
@@ -745,12 +1023,24 @@ export const useGameState = create<GameState>((set, get) => ({
   },
 
   triggerEnding: (ending: 'BEACON' | 'SILENT_FREQUENCY' | 'UNKNOWN_SIGNAL') => {
-    set({ choiceModalOpen: false, narrativeRecapOpen: false, activeEnding: ending, hasCompletedBefore: true });
+    set({
+      choiceModalOpen: false,
+      narrativeRecapOpen: false,
+      activeEnding: ending,
+      hasCompletedBefore: true,
+      totalPlaythroughs: get().totalPlaythroughs + 1,
+    });
 
     const unlocked = { ...get().endingsUnlocked };
+    const witnessed = Array.from(new Set([...get().witnessedEndings, ending]));
+
+    // All chapters unlocked when completing any ending
+    const allChapters = CHAPTER_LIST.map((c) => c.id);
+
     if (ending === 'BEACON') {
       unlocked.beacon = true;
       soundEngine.playBeaconSound();
+      get().unlockSnapshot('snap_beacon_optical_array');
       soundEngine.speakRadioTransmission(RADIO_TRANSCRIPTS.BEACON_ENDING, () => {
         get().showSubtitles(`RADIO: "${RADIO_TRANSCRIPTS.BEACON_ENDING}"`, 8000);
       });
@@ -763,56 +1053,123 @@ export const useGameState = create<GameState>((set, get) => ({
       soundEngine.playBeaconSound();
       get().unlockEvidence('operator_final_dossier');
       get().unlockEvidence('signal_tower_array');
+      get().unlockSnapshot('snap_tower_dossier');
       soundEngine.speakRadioTransmission(RADIO_TRANSCRIPTS.UNKNOWN_SIGNAL_ENDING, () => {
         get().showSubtitles(`RADIO: "${RADIO_TRANSCRIPTS.UNKNOWN_SIGNAL_ENDING}"`, 9000);
       });
     }
 
-    set({ endingsUnlocked: unlocked });
+    set({
+      endingsUnlocked: unlocked,
+      witnessedEndings: witnessed,
+      unlockedChapters: allChapters,
+    });
 
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        hasCompletedBefore: true,
-        endingsUnlocked: unlocked,
-        settings: get().settings,
-      }));
-    } catch (e) {
-      console.warn("Failed to persist save", e);
-    }
+    get().persistCurrentState();
   },
 
   resetGame: () => {
     get().startGame();
   },
 
-  resetAllProgress: () => {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem('DEAD_AIR_SIGNAL_13_SAVE_V2');
-    } catch (e) {
-      console.warn("Failed to clear local storage", e);
-    }
+  // Resets only current campaign progression; preserves profile, endings, snapshots, and settings
+  resetMainProgression: () => {
     set({
-      hasCompletedBefore: false,
-      endingsUnlocked: { beacon: false, silentFrequency: false, unknownSignal: false },
       gameStarted: false,
+      isPaused: false,
+      isGameOver: false,
+      activeEnding: null,
+      isNewGamePlus: false,
+      isChapterReplay: false,
+      replayChapterId: null,
+      currentObjectiveIndex: 0,
+      objectiveHistory: [0],
+      currentSector: 'RADIO_ROOM',
+      currentFrequency: 12.82,
+      targetFrequency: 13.13,
+      signalLocked: false,
+      inventory: [],
+      evidenceUnlocked: ['signal_13_first', 'former_operator_log'],
+      generatorDoorUnlocked: false,
+      archiveDoorUnlocked: false,
+      archiveCabinetUnlocked: false,
+      sleepingQuartersUnlocked: false,
+      signalTowerUnlocked: false,
+      hasHeardFirstSignal: false,
+      hasReadMaintenanceNote: false,
+      hasCollectedFuse: false,
+      hasRestoredPower: false,
+      hasCollectedMapPiece: false,
+      hasFoundArchiveKey: false,
+      hasPlayedTapeA: false,
+      hasTunedSecondFrequency: false,
+      isBeaconCalibrated: false,
+      tensionLevel: 0,
+      sanity: 100,
+      photoChanged: false,
+      wetFootprintsVisible: false,
+      beaconSettings: { frequency: 12.5, power: 30, azimuth: 120 },
+    });
+
+    get().persistCurrentState();
+  },
+
+  // Wipes all data completely after explicit confirmation
+  resetAllProgress: () => {
+    clearAllGameStorage();
+    set({
+      gameStarted: false,
+      isPaused: false,
+      isGameOver: false,
+      activeEnding: null,
+      hasCompletedBefore: false,
+      totalPlaythroughs: 0,
+      endingsUnlocked: { beacon: false, silentFrequency: false, unknownSignal: false },
+      witnessedEndings: [],
+      unlockedChapters: ['CH_1_NIGHT_SHIFT'],
+      allDiscoveredEvidence: ['signal_13_first', 'former_operator_log'],
+      snapshots: [],
+      ngPlusVariationsEncountered: [],
+      isNewGamePlus: false,
+      isChapterReplay: false,
+      replayChapterId: null,
+      activeVariations: [],
+      currentObjectiveIndex: 0,
+      objectiveHistory: [0],
+      currentSector: 'RADIO_ROOM',
+      currentFrequency: 12.82,
+      targetFrequency: 13.13,
+      signalLocked: false,
+      inventory: [],
+      evidenceUnlocked: ['signal_13_first', 'former_operator_log'],
+      generatorDoorUnlocked: false,
+      archiveDoorUnlocked: false,
+      archiveCabinetUnlocked: false,
+      sleepingQuartersUnlocked: false,
+      signalTowerUnlocked: false,
+      hasHeardFirstSignal: false,
+      hasReadMaintenanceNote: false,
+      hasCollectedFuse: false,
+      hasRestoredPower: false,
+      hasCollectedMapPiece: false,
+      hasFoundArchiveKey: false,
+      hasPlayedTapeA: false,
+      hasTunedSecondFrequency: false,
+      isBeaconCalibrated: false,
+      tensionLevel: 0,
+      sanity: 100,
+      photoChanged: false,
+      wetFootprintsVisible: false,
+      beaconSettings: { frequency: 12.5, power: 30, azimuth: 120 },
+      settings: DEFAULT_SETTINGS,
     });
   },
 
-  updateSettings: (newSettings: Partial<GameSettings>) => {
+  updateSettings: (newSettings: Partial<GameSettingsV4>) => {
     const updated = { ...get().settings, ...newSettings };
     set({ settings: updated });
     soundEngine.setVolumes(updated.masterVolume, updated.sfxVolume, updated.ambienceVolume, updated.musicVolume);
-
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        hasCompletedBefore: get().hasCompletedBefore,
-        endingsUnlocked: get().endingsUnlocked,
-        settings: updated,
-      }));
-    } catch (e) {
-      console.warn("Failed to persist settings", e);
-    }
+    get().persistCurrentState();
   },
 
   triggerLightning: () => {
@@ -825,5 +1182,68 @@ export const useGameState = create<GameState>((set, get) => ({
         set({ seaLightVisible: false });
       }, 1200);
     }, 350);
+  },
+
+  persistCurrentState: () => {
+    const state = get();
+    // Do not overwrite main campaign progression if player is currently in a temporary Chapter Replay
+    const currentStored = loadSaveFromLocalStorage();
+
+    const saveObj: SaveDataV4 = {
+      saveVersion: CURRENT_SAVE_VERSION,
+      progression: state.isChapterReplay ? currentStored.progression : {
+        currentCheckpointChapterId: state.currentObjectiveIndex >= 8 ? 'CH_5_SIGNAL_TOWER'
+          : state.currentObjectiveIndex >= 6 ? 'CH_4_BEACON_CALIBRATION'
+          : state.currentObjectiveIndex >= 3 ? 'CH_3_BLACK_TIDE_RECORDS'
+          : state.currentObjectiveIndex >= 2 ? 'CH_2_FREQUENCY_1313'
+          : 'CH_1_NIGHT_SHIFT',
+        currentObjectiveIndex: state.currentObjectiveIndex,
+        objectiveHistory: state.objectiveHistory,
+        inventory: state.inventory,
+        evidenceUnlocked: state.evidenceUnlocked,
+        currentSector: state.currentSector,
+        currentFrequency: state.currentFrequency,
+        targetFrequency: state.targetFrequency,
+        signalLocked: state.signalLocked,
+        beaconSettings: state.beaconSettings,
+        generatorDoorUnlocked: state.generatorDoorUnlocked,
+        archiveDoorUnlocked: state.archiveDoorUnlocked,
+        archiveCabinetUnlocked: state.archiveCabinetUnlocked,
+        sleepingQuartersUnlocked: state.sleepingQuartersUnlocked,
+        signalTowerUnlocked: state.signalTowerUnlocked,
+        hasHeardFirstSignal: state.hasHeardFirstSignal,
+        hasReadMaintenanceNote: state.hasReadMaintenanceNote,
+        hasCollectedFuse: state.hasCollectedFuse,
+        hasRestoredPower: state.hasRestoredPower,
+        hasCollectedMapPiece: state.hasCollectedMapPiece,
+        hasFoundArchiveKey: state.hasFoundArchiveKey,
+        hasPlayedTapeA: state.hasPlayedTapeA,
+        hasTunedSecondFrequency: state.hasTunedSecondFrequency,
+        isBeaconCalibrated: state.isBeaconCalibrated,
+        tensionLevel: state.tensionLevel,
+        sanity: state.sanity,
+        photoChanged: state.photoChanged,
+        wetFootprintsVisible: state.wetFootprintsVisible,
+      },
+      profile: {
+        hasCompletedBefore: state.hasCompletedBefore,
+        totalPlaythroughs: state.totalPlaythroughs,
+        endingsUnlocked: state.endingsUnlocked,
+        allDiscoveredEvidence: state.allDiscoveredEvidence,
+        snapshots: state.snapshots,
+        unlockedChapters: state.unlockedChapters,
+        witnessedEndings: state.witnessedEndings,
+        ngPlusVariationsEncountered: state.ngPlusVariationsEncountered,
+      },
+      settings: state.settings,
+      replay: {
+        isNewGamePlus: state.isNewGamePlus,
+        isChapterReplay: state.isChapterReplay,
+        replayChapterId: state.replayChapterId,
+        activeVariations: state.activeVariations,
+      },
+    };
+
+    saveToLocalStorage(saveObj);
   },
 }));
