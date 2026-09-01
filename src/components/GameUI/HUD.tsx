@@ -11,6 +11,9 @@ import {
   Backpack,
   Search,
   CheckCircle2,
+  Camera,
+  Layers,
+  Sparkles,
 } from 'lucide-react';
 
 export function HUD() {
@@ -21,9 +24,14 @@ export function HUD() {
   const currentSector = useGameState((state) => state.currentSector);
   const sanity = useGameState((state) => state.sanity);
   const inventory = useGameState((state) => state.inventory);
+  const settings = useGameState((state) => state.settings);
+  const isNewGamePlus = useGameState((state) => state.isNewGamePlus);
+  const isChapterReplay = useGameState((state) => state.isChapterReplay);
 
   const openInventory = useGameState((state) => state.openInventory);
   const openInvestigationBoard = useGameState((state) => state.openInvestigationBoard);
+  const openSnapshotJournal = useGameState((state) => state.openSnapshotJournal);
+  const openObjectiveHistory = useGameState((state) => state.openObjectiveHistory);
   const exitToTitle = useGameState((state) => state.exitToTitle);
 
   const objective = OBJECTIVES[currentObjectiveIndex] || OBJECTIVES[0];
@@ -49,18 +57,39 @@ export function HUD() {
     }
   };
 
+  const fontClass = settings.fontFamily === 'SANS' ? 'font-sans' : 'font-mono';
+  const subtitleSizeClass =
+    settings.subtitleSize === 'SMALL'
+      ? 'text-xs'
+      : settings.subtitleSize === 'LARGE'
+      ? 'text-lg md:text-xl font-extrabold'
+      : 'text-sm md:text-base font-bold';
+
+  const highContrastBorder = settings.highContrastUI
+    ? 'border-2 border-[#39D9E6] shadow-[0_0_15px_rgba(57,217,230,0.4)]'
+    : 'border border-[#102A43] shadow-2xl';
+
   return (
-    <div className="absolute inset-0 pointer-events-none z-10 flex flex-col justify-between p-4 md:p-6 select-none font-mono">
+    <div className={`absolute inset-0 pointer-events-none z-10 flex flex-col justify-between p-4 md:p-6 select-none ${fontClass}`}>
       {/* --- TOP BAR: DIRECTIVES, SECTOR NAVIGATOR, TELEMETRY & FAST ACCESS --- */}
       <div className="flex flex-col md:flex-row justify-between items-start gap-3">
         {/* Current Objective Card */}
-        <div className="bg-[#07111F]/90 border border-[#102A43] backdrop-blur-md px-4 py-3 rounded-xl max-w-md shadow-2xl pointer-events-auto">
+        <div
+          onClick={openObjectiveHistory}
+          className={`bg-[#07111F]/95 backdrop-blur-md px-4 py-3 rounded-xl max-w-md pointer-events-auto cursor-pointer hover:border-[#39D9E6]/60 transition-all ${highContrastBorder}`}
+          title="Click to view full directive history"
+        >
           <div className="flex items-center justify-between gap-2 mb-1">
             <div className="flex items-center gap-2">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#39D9E6] animate-pulse" />
               <span className="text-xs tracking-widest text-[#39D9E6] uppercase font-bold">
                 Directive #{objective.id + 1} of {OBJECTIVES.length}
               </span>
+              {isNewGamePlus && (
+                <span className="px-1.5 py-0.5 rounded bg-[#F5B960]/20 text-[#F5B960] text-[9px] font-bold">
+                  NG+
+                </span>
+              )}
             </div>
             <span className="text-[10px] text-slate-400">
               {currentObjectiveIndex > 0 && <CheckCircle2 className="w-3.5 h-3.5 inline text-[#63D471] mr-1" />}
@@ -89,7 +118,7 @@ export function HUD() {
         </div>
 
         {/* Center Sector Navigator */}
-        <div className="bg-[#07111F]/90 border border-[#39D9E6]/40 backdrop-blur-md px-4 py-2 rounded-xl text-xs shadow-2xl flex items-center gap-2.5 pointer-events-auto">
+        <div className={`bg-[#07111F]/95 backdrop-blur-md px-4 py-2 rounded-xl text-xs flex items-center gap-2.5 pointer-events-auto ${highContrastBorder}`}>
           <MapPin className="w-4 h-4 text-[#39D9E6] animate-pulse" />
           <div className="flex flex-col items-center">
             <span className="text-[9px] text-slate-400 uppercase tracking-widest">CURRENT LOCATION</span>
@@ -102,7 +131,7 @@ export function HUD() {
         {/* Right Telemetry & Quick Action Icons */}
         <div className="flex flex-col items-end gap-2 pointer-events-auto">
           {/* Station Status Card */}
-          <div className="bg-[#07111F]/90 border border-[#102A43] backdrop-blur-md px-3.5 py-2.5 rounded-xl text-right text-xs shadow-2xl flex flex-col gap-1">
+          <div className={`bg-[#07111F]/95 backdrop-blur-md px-3.5 py-2.5 rounded-xl text-right text-xs flex flex-col gap-1 ${highContrastBorder}`}>
             <div className="flex items-center justify-end gap-2 text-[#D94141] font-bold">
               <Clock className="w-3.5 h-3.5 animate-pulse" />
               <span className="text-xs md:text-sm">01:13 AM (STATION TIME)</span>
@@ -121,7 +150,7 @@ export function HUD() {
             </div>
           </div>
 
-          {/* Quick HUD Triggers: Evidence Board, Inventory & Exit */}
+          {/* Quick HUD Triggers */}
           <div className="flex items-center gap-1.5">
             <button
               onClick={openInvestigationBoard}
@@ -130,6 +159,14 @@ export function HUD() {
             >
               <Search className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">BOARD [TAB]</span>
+            </button>
+
+            <button
+              onClick={openSnapshotJournal}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#0F172A] hover:bg-[#102A43] text-[#38BDF8] rounded-lg border border-[#38BDF8]/30 text-xs font-bold transition-all shadow hover:scale-105"
+              title="Snapshot Journal"
+            >
+              <Camera className="w-3.5 h-3.5" />
             </button>
 
             <button
@@ -148,7 +185,7 @@ export function HUD() {
 
             <button
               onClick={() => {
-                if (confirm("Exit game and return to station home screen?")) {
+                if (confirm("Exit game and return to station title screen?")) {
                   exitToTitle();
                 }
               }}
@@ -181,7 +218,7 @@ export function HUD() {
           <span className="text-[10px] text-[#39D9E6] tracking-widest uppercase block mb-0.5 font-bold">
             [ INCOMING TRANSMISSION / AUDIO LOG ]
           </span>
-          <p className="text-sm md:text-base text-slate-100 font-bold tracking-wide">
+          <p className={`${subtitleSizeClass} text-slate-100 tracking-wide`}>
             {subtitles}
           </p>
         </div>
