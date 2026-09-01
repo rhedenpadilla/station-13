@@ -89,7 +89,7 @@ export function WeatherEffects() {
       />
 
       {/* Atmospheric Exterior Fog */}
-      <fogExp2 attach="fog" args={['#07111F', 0.045]} />
+      <fogExp2 attach="fog" args={['#07111F', useGameState.getState().settings.reducedFog ? 0.018 : 0.045]} />
     </group>
   );
 }
