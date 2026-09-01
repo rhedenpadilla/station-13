@@ -14,6 +14,9 @@ import { ChoiceModal } from './components/GameUI/ChoiceModal';
 import { EndingScreen } from './components/GameUI/EndingScreen';
 import { GameOverScreen } from './components/GameUI/GameOverScreen';
 import { PauseMenu } from './components/Menus/PauseMenu';
+import { SnapshotJournalModal } from './components/GameUI/SnapshotJournalModal';
+import { ChapterSelectModal } from './components/Menus/ChapterSelectModal';
+import { ObjectiveHistoryModal } from './components/GameUI/ObjectiveHistoryModal';
 
 export function App() {
   const gameStarted = useGameState((state) => state.gameStarted);
@@ -25,8 +28,15 @@ export function App() {
   const beaconCalibrationOpen = useGameState((state) => state.beaconCalibrationOpen);
   const narrativeRecapOpen = useGameState((state) => state.narrativeRecapOpen);
   const choiceModalOpen = useGameState((state) => state.choiceModalOpen);
+  const snapshotJournalOpen = useGameState((state) => state.snapshotJournalOpen);
+  const chapterSelectOpen = useGameState((state) => state.chapterSelectOpen);
+  const objectiveHistoryOpen = useGameState((state) => state.objectiveHistoryOpen);
   const activeEnding = useGameState((state) => state.activeEnding);
   const isGameOver = useGameState((state) => state.isGameOver);
+
+  const closeSnapshotJournal = useGameState((state) => state.closeSnapshotJournal);
+  const closeChapterSelect = useGameState((state) => state.closeChapterSelect);
+  const closeObjectiveHistory = useGameState((state) => state.closeObjectiveHistory);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-[#07111F]">
@@ -52,6 +62,9 @@ export function App() {
           {beaconCalibrationOpen && <BeaconCalibrationUI />}
           {narrativeRecapOpen && <NarrativeRecapModal />}
           {choiceModalOpen && <ChoiceModal />}
+          {snapshotJournalOpen && <SnapshotJournalModal onClose={closeSnapshotJournal} />}
+          {chapterSelectOpen && <ChapterSelectModal onClose={closeChapterSelect} />}
+          {objectiveHistoryOpen && <ObjectiveHistoryModal onClose={closeObjectiveHistory} />}
           {activeEnding && <EndingScreen />}
           {isGameOver && <GameOverScreen />}
           <PauseMenu />
