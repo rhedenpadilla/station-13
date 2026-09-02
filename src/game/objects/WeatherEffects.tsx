@@ -7,6 +7,7 @@ export function WeatherEffects() {
   const triggerLightning = useGameState((state) => state.triggerLightning);
   const isLightningActive = useGameState((state) => state.isLightningActive);
   const graphicsQuality = useGameState((state) => state.settings.graphicsQuality);
+  const reducedFog = useGameState((state) => state.settings.reducedFog);
 
   // Lightning timer
   useEffect(() => {
@@ -24,7 +25,7 @@ export function WeatherEffects() {
   }, [triggerLightning]);
 
   // Rain particle system
-  const rainCount = graphicsQuality === 'LOW' ? 1200 : graphicsQuality === 'MEDIUM' ? 3000 : 6000;
+  const rainCount = graphicsQuality === 'LOW' ? 800 : graphicsQuality === 'MEDIUM' ? 2500 : 5000;
   const pointsRef = useRef<THREE.Points>(null);
 
   const { positions, velocities } = useMemo(() => {
@@ -59,6 +60,10 @@ export function WeatherEffects() {
     posAttr.needsUpdate = true;
   });
 
+  const fogDensity = reducedFog
+    ? graphicsQuality === 'LOW' ? 0.012 : graphicsQuality === 'MEDIUM' ? 0.018 : 0.022
+    : graphicsQuality === 'LOW' ? 0.025 : graphicsQuality === 'MEDIUM' ? 0.045 : 0.052;
+
   return (
     <group>
       {/* Rain Streaks */}
@@ -75,7 +80,7 @@ export function WeatherEffects() {
           size={0.08}
           color="#9FB3C8"
           transparent
-          opacity={0.6}
+          opacity={graphicsQuality === 'LOW' ? 0.45 : 0.6}
           depthWrite={false}
           blending={THREE.AdditiveBlending}
         />
@@ -84,12 +89,12 @@ export function WeatherEffects() {
       {/* Lightning Flash Directional Light */}
       <directionalLight
         position={[-15, 30, -30]}
-        intensity={isLightningActive ? 4.5 : 0.0}
+        intensity={isLightningActive ? (graphicsQuality === 'LOW' ? 3.0 : 4.5) : 0.0}
         color="#D6E8FF"
       />
 
       {/* Atmospheric Exterior Fog */}
-      <fogExp2 attach="fog" args={['#07111F', useGameState.getState().settings.reducedFog ? 0.018 : 0.045]} />
+      <fogExp2 attach="fog" args={['#07111F', fogDensity]} />
     </group>
   );
 }
