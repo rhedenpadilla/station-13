@@ -693,7 +693,7 @@ export function PlayerController() {
             angle={Math.PI / 4.5}
             penumbra={0.5}
             distance={18}
-            castShadow
+            castShadow={settings.graphicsQuality === 'HIGH'}
           />
         </group>
       )}
