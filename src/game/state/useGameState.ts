@@ -672,7 +672,9 @@ export const useGameState = create<GameState>((set, get) => ({
   },
 
   setInteractionPrompt: (prompt: string | null) => {
-    set({ interactionPrompt: prompt });
+    if (get().interactionPrompt !== prompt) {
+      set({ interactionPrompt: prompt });
+    }
   },
 
   showSubtitles: (text: string, durationMs = 5000) => {
