@@ -82,7 +82,7 @@ export function TitleScreen() {
       <div className="relative z-10 flex flex-wrap justify-between items-center border-b border-[#102A43] pb-4 gap-2">
         <div className="flex items-center gap-2.5 text-xs text-[#39D9E6]">
           <Radio className="w-4 h-4 animate-pulse" />
-          <span>COASTAL METEOROLOGICAL STATION 13 • PHASE 4 REPLAY EDITION</span>
+          <span>COASTAL METEOROLOGICAL STATION 13 • TRANSMISSION ARCHIVE (RELEASE EDITION)</span>
         </div>
 
         {/* Top Badges: Endings & Snapshots */}
