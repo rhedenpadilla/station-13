@@ -99,7 +99,7 @@ export const DEFAULT_SETTINGS: GameSettingsV4 = {
   sfxVolume: 0.9,
   ambienceVolume: 0.7,
   musicVolume: 0.75,
-  graphicsQuality: 'HIGH',
+  graphicsQuality: 'MEDIUM',
   virtualControlsMode: 'AUTO',
   virtualControlSize: 'MEDIUM',
   virtualControlOpacity: 'MEDIUM',
