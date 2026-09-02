@@ -17,6 +17,7 @@ import { PauseMenu } from './components/Menus/PauseMenu';
 import { SnapshotJournalModal } from './components/GameUI/SnapshotJournalModal';
 import { ChapterSelectModal } from './components/Menus/ChapterSelectModal';
 import { ObjectiveHistoryModal } from './components/GameUI/ObjectiveHistoryModal';
+import { GameErrorBoundary } from './components/GameErrorBoundary';
 
 export function App() {
   const gameStarted = useGameState((state) => state.gameStarted);
@@ -39,42 +40,44 @@ export function App() {
   const closeObjectiveHistory = useGameState((state) => state.closeObjectiveHistory);
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-[#07111F]">
-      {!gameStarted ? (
-        <TitleScreen />
-      ) : (
-        <div className="relative w-full h-full">
-          {/* 3D R3F Game Canvas (7 Stations including Signal Tower, Weather, Player) */}
-          <StationScene />
+    <GameErrorBoundary>
+      <div className="relative w-screen h-screen overflow-hidden bg-[#07111F]">
+        {!gameStarted ? (
+          <TitleScreen />
+        ) : (
+          <div className="relative w-full h-full">
+            {/* 3D R3F Game Canvas (7 Stations including Signal Tower, Weather, Player) */}
+            <StationScene />
 
-          {/* In-Game HUD: Objectives, Sub-Goals, Telemetry, Crosshair */}
-          <HUD />
+            {/* In-Game HUD: Objectives, Sub-Goals, Telemetry, Crosshair */}
+            <HUD />
 
-          {/* On-Screen Virtual Controls (D-Pad, Look Zone & Action Buttons) */}
-          <VirtualControlOverlay />
+            {/* On-Screen Virtual Controls (D-Pad, Look Zone & Action Buttons) */}
+            <VirtualControlOverlay />
 
-          {/* Interactive Modals & Puzzles */}
-          {radioTunerOpen && <RadioTunerUI />}
-          {noteViewerOpen && <NoteViewerUI />}
-          {inventoryOpen && <InventoryUI />}
-          {investigationBoardOpen && <InvestigationBoardUI />}
-          {cassettePlayerOpen && <CassettePlayerUI />}
-          {beaconCalibrationOpen && <BeaconCalibrationUI />}
-          {narrativeRecapOpen && <NarrativeRecapModal />}
-          {choiceModalOpen && <ChoiceModal />}
-          {snapshotJournalOpen && <SnapshotJournalModal onClose={closeSnapshotJournal} />}
-          {chapterSelectOpen && <ChapterSelectModal onClose={closeChapterSelect} />}
-          {objectiveHistoryOpen && <ObjectiveHistoryModal onClose={closeObjectiveHistory} />}
-          {activeEnding && <EndingScreen />}
-          {isGameOver && <GameOverScreen />}
-          <PauseMenu />
+            {/* Interactive Modals & Puzzles */}
+            {radioTunerOpen && <RadioTunerUI />}
+            {noteViewerOpen && <NoteViewerUI />}
+            {inventoryOpen && <InventoryUI />}
+            {investigationBoardOpen && <InvestigationBoardUI />}
+            {cassettePlayerOpen && <CassettePlayerUI />}
+            {beaconCalibrationOpen && <BeaconCalibrationUI />}
+            {narrativeRecapOpen && <NarrativeRecapModal />}
+            {choiceModalOpen && <ChoiceModal />}
+            {snapshotJournalOpen && <SnapshotJournalModal onClose={closeSnapshotJournal} />}
+            {chapterSelectOpen && <ChapterSelectModal onClose={closeChapterSelect} />}
+            {objectiveHistoryOpen && <ObjectiveHistoryModal onClose={closeObjectiveHistory} />}
+            {activeEnding && <EndingScreen />}
+            {isGameOver && <GameOverScreen />}
+            <PauseMenu />
 
-          {/* CRT Scanline & Atmospheric Vignette Overlays */}
-          <div className="absolute inset-0 crt-overlay pointer-events-none z-20" />
-          <div className="absolute inset-0 vignette-overlay pointer-events-none z-20" />
-        </div>
-      )}
-    </div>
+            {/* CRT Scanline & Atmospheric Vignette Overlays */}
+            <div className="absolute inset-0 crt-overlay pointer-events-none z-20" />
+            <div className="absolute inset-0 vignette-overlay pointer-events-none z-20" />
+          </div>
+        )}
+      </div>
+    </GameErrorBoundary>
   );
 }
 
