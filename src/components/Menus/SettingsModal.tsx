@@ -27,7 +27,7 @@ export function SettingsModal({ onClose }: Props) {
   const resetMainProgression = useGameState((state) => state.resetMainProgression);
   const resetAllProgress = useGameState((state) => state.resetAllProgress);
 
-  const [activeTab, setActiveTab] = useState<'AUDIO' | 'CONTROLS' | 'ACCESSIBILITY' | 'RESET'>('CONTROLS');
+  const [activeTab, setActiveTab] = useState<'GRAPHICS' | 'CONTROLS' | 'ACCESSIBILITY' | 'AUDIO' | 'RESET'>('GRAPHICS');
   const [showFullResetConfirm, setShowFullResetConfirm] = useState(false);
   const [showMainResetConfirm, setShowMainResetConfirm] = useState(false);
 
@@ -63,7 +63,20 @@ export function SettingsModal({ onClose }: Props) {
         </div>
 
         {/* Tab Navigation */}
-        <div className="grid grid-cols-4 gap-2 border-b border-[#334155] pb-2">
+        <div className="grid grid-cols-5 gap-2 border-b border-[#334155] pb-2">
+          <button
+            onClick={() => setActiveTab('GRAPHICS')}
+            className={`py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              activeTab === 'GRAPHICS'
+                ? 'bg-[#39D9E6] text-[#07111F]'
+                : 'bg-[#1E293B] text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Monitor className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Graphics</span>
+            <span className="sm:hidden">GFX</span>
+          </button>
+
           <button
             onClick={() => setActiveTab('CONTROLS')}
             className={`py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
@@ -116,6 +129,89 @@ export function SettingsModal({ onClose }: Props) {
             <span className="sm:hidden">Reset</span>
           </button>
         </div>
+
+        {/* --- TAB 0: GRAPHICS & PERFORMANCE --- */}
+        {activeTab === 'GRAPHICS' && (
+          <div className="space-y-4 animate-fade-in">
+            {/* Graphics Preset Selection */}
+            <div className="bg-[#07111F] p-4 rounded-xl border border-[#334155] space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-slate-300 font-bold uppercase text-[#39D9E6]">
+                  Graphics Quality Preset
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  Active: <strong className="text-[#39D9E6]">{settings.graphicsQuality}</strong>
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                {(['LOW', 'MEDIUM', 'HIGH'] as GraphicsQuality[]).map((preset) => (
+                  <button
+                    key={preset}
+                    onClick={() => updateSettings({ graphicsQuality: preset })}
+                    className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between gap-1.5 ${
+                      settings.graphicsQuality === preset
+                        ? 'bg-[#39D9E6]/15 border-[#39D9E6] shadow-[0_0_15px_rgba(57,217,230,0.2)]'
+                        : 'bg-[#1E293B]/80 border-[#334155] hover:border-slate-400 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center w-full">
+                      <span className={`text-xs font-black uppercase ${
+                        settings.graphicsQuality === preset ? 'text-[#39D9E6]' : 'text-slate-200'
+                      }`}>
+                        {preset === 'MEDIUM' ? 'Medium (Balanced)' : preset}
+                      </span>
+                      {settings.graphicsQuality === preset && (
+                        <Check className="w-4 h-4 text-[#39D9E6]" />
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-400 leading-tight">
+                      {preset === 'LOW' && 'Max framerate on laptops. Soft ambient lighting, 800 rain particles, simplified shadows.'}
+                      {preset === 'MEDIUM' && 'Default recommended experience. 2,500 particles, balanced atmosphere & smooth rendering.'}
+                      {preset === 'HIGH' && 'Maximum fidelity. 5,000 rain streaks, antialiasing, flashlight shadow maps & dense fog.'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Performance Breakdown Table */}
+            <div className="bg-[#07111F] p-4 rounded-xl border border-[#334155] space-y-3">
+              <span className="text-xs text-slate-300 block font-bold uppercase text-slate-200">
+                Preset Rendering Breakdown
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                <div className="bg-[#1E293B]/60 p-2.5 rounded-lg border border-[#334155]/60">
+                  <span className="text-slate-400 block text-[9px] uppercase tracking-wider">Shadow Maps</span>
+                  <span className="font-bold text-slate-200">
+                    {settings.graphicsQuality === 'LOW' ? 'Simplified (Off)' : settings.graphicsQuality === 'MEDIUM' ? 'Balanced' : 'High Quality'}
+                  </span>
+                </div>
+                <div className="bg-[#1E293B]/60 p-2.5 rounded-lg border border-[#334155]/60">
+                  <span className="text-slate-400 block text-[9px] uppercase tracking-wider">Rain Particles</span>
+                  <span className="font-bold text-[#38BDF8]">
+                    {settings.graphicsQuality === 'LOW' ? '800 Particles' : settings.graphicsQuality === 'MEDIUM' ? '2,500 Particles' : '5,000 Particles'}
+                  </span>
+                </div>
+                <div className="bg-[#1E293B]/60 p-2.5 rounded-lg border border-[#334155]/60">
+                  <span className="text-slate-400 block text-[9px] uppercase tracking-wider">Display Resolution</span>
+                  <span className="font-bold text-slate-200">
+                    {settings.graphicsQuality === 'LOW' ? 'Native 1.0x DPR' : settings.graphicsQuality === 'MEDIUM' ? 'Adaptive 1.5x DPR' : 'HiDPI 2.0x DPR'}
+                  </span>
+                </div>
+                <div className="bg-[#1E293B]/60 p-2.5 rounded-lg border border-[#334155]/60">
+                  <span className="text-slate-400 block text-[9px] uppercase tracking-wider">Antialiasing</span>
+                  <span className="font-bold text-slate-200">
+                    {settings.graphicsQuality === 'HIGH' ? 'Enabled (MSAA)' : 'Performance (Off)'}
+                  </span>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400 italic pt-1">
+                * Quality changes apply in real-time to the active scene without requiring a page refresh. Puzzles and interactive objects remain high-contrast and readable on all presets.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* --- TAB 1: CONTROLS & VIRTUAL LAYOUT --- */}
         {activeTab === 'CONTROLS' && (
